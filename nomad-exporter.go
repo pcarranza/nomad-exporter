@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/prometheus/client_golang/prometheus"
@@ -320,12 +319,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	err = collectPeersMetrics(e, ch)
-	if err != nil {
-		logError(err)
-		return
-	}
-
 	err = collectAllocMetrics(e, ch)
 	if err != nil {
 		logError(err)
@@ -373,26 +366,26 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			}
 			for taskName, taskStats := range stats.Tasks {
 				ch <- prometheus.MustNewConstMetric(
-					taskCPUPercent, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.Percent, alloc.Job.Name, alloc.TaskGroup, alloc.Name, taskName, alloc.Job.Region, node.Datacenter, node.Name,
+					taskCPUPercent, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.Percent, *alloc.Job.Name, alloc.TaskGroup, alloc.Name, taskName, *alloc.Job.Region, node.Datacenter, node.Name,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					taskCPUTotalTicks, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.TotalTicks, alloc.Job.Name, alloc.TaskGroup, alloc.Name, taskName, alloc.Job.Region, node.Datacenter, node.Name,
+					taskCPUTotalTicks, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.TotalTicks, *alloc.Job.Name, alloc.TaskGroup, alloc.Name, taskName, *alloc.Job.Region, node.Datacenter, node.Name,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					taskMemoryRssBytes, prometheus.GaugeValue, float64(taskStats.ResourceUsage.MemoryStats.RSS), alloc.Job.Name, alloc.TaskGroup, alloc.Name, taskName, alloc.Job.Region, node.Datacenter, node.Name,
+					taskMemoryRssBytes, prometheus.GaugeValue, float64(taskStats.ResourceUsage.MemoryStats.RSS), *alloc.Job.Name, alloc.TaskGroup, alloc.Name, taskName, *alloc.Job.Region, node.Datacenter, node.Name,
 				)
 			}
 			ch <- prometheus.MustNewConstMetric(
-				allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, alloc.Job.Name, alloc.TaskGroup, alloc.Name, alloc.Job.Region, node.Datacenter, node.Name,
+				allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, *alloc.Job.Name, alloc.TaskGroup, alloc.Name, *alloc.Job.Region, node.Datacenter, node.Name,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), alloc.Job.Name, alloc.TaskGroup, alloc.Name, alloc.Job.Region, node.Datacenter, node.Name,
+				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), *alloc.Job.Name, alloc.TaskGroup, alloc.Name, *alloc.Job.Region, node.Datacenter, node.Name,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemory, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), alloc.Job.Name, alloc.TaskGroup, alloc.Name, alloc.Job.Region, node.Datacenter, node.Name,
+				allocationMemory, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), *alloc.Job.Name, alloc.TaskGroup, alloc.Name, *alloc.Job.Region, node.Datacenter, node.Name,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemoryLimit, prometheus.GaugeValue, float64(alloc.Resources.MemoryMB), alloc.Job.Name, alloc.TaskGroup, alloc.Name, alloc.Job.Region, node.Datacenter, node.Name,
+				allocationMemoryLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB), *alloc.Job.Name, alloc.TaskGroup, alloc.Name, *alloc.Job.Region, node.Datacenter, node.Name,
 			)
 		}(a)
 	}
@@ -420,12 +413,12 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 				var allocatedCPU, allocatedMemory int
 				for _, alloc := range runningAllocs {
-					allocatedCPU += alloc.Resources.CPU
-					allocatedMemory += alloc.Resources.MemoryMB
+					allocatedCPU += *alloc.Resources.CPU
+					allocatedMemory += *alloc.Resources.MemoryMB
 				}
 
 				ch <- prometheus.MustNewConstMetric(
-					nodeResourceMemory, prometheus.GaugeValue, float64(node.Resources.MemoryMB), node.Name, node.Datacenter,
+					nodeResourceMemory, prometheus.GaugeValue, float64(*node.Resources.MemoryMB), node.Name, node.Datacenter,
 				)
 				ch <- prometheus.MustNewConstMetric(
 					nodeAllocatedMemory, prometheus.GaugeValue, float64(allocatedMemory), node.Name, node.Datacenter,
@@ -434,7 +427,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used/1024/1024), node.Name, node.Datacenter,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					nodeResourceCPU, prometheus.GaugeValue, float64(node.Resources.CPU), node.Name, node.Datacenter,
+					nodeResourceCPU, prometheus.GaugeValue, float64(*node.Resources.CPU), node.Name, node.Datacenter,
 				)
 				ch <- prometheus.MustNewConstMetric(
 					nodeAllocatedCPU, prometheus.GaugeValue, float64(allocatedCPU), node.Name, node.Datacenter,
@@ -454,7 +447,7 @@ func main() {
 		listenAddress = flag.String("web.listen-address", ":9172", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		nomadServer   = flag.String("nomad.server", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
-		nomadTimeout  = flag.String("nomad.timeout", "30", "HTTP timeout to contact Nomad agent.")
+		// nomadTimeout  = flag.String("nomad.timeout", "30", "HTTP timeout to contact Nomad agent.")
 		tlsCaFile     = flag.String("tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
 		tlsCaPath     = flag.String("tls.ca-path", "", "ca-path is the path to a directory of PEM-encoded CA cert files to verify the connection to nomad server")
 		tlsCert       = flag.String("tls.cert-file", "", "cert-file is the path to the client certificate for Nomad communication")
@@ -480,11 +473,11 @@ func main() {
 		cfg.TLSConfig.TLSServerName = *tlsServerName
 	}
 
-	timeout, err := strconv.Atoi(*nomadTimeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-	cfg.HttpClient.Timeout = time.Duration(timeout) * time.Second
+	// timeout, err := strconv.Atoi(*nomadTimeout)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// cfg.httpClient.Timeout = time.Duration(timeout) * time.Second
 
 	exporter, err := NewExporter(cfg)
 	if err != nil {
@@ -540,7 +533,7 @@ func collectMetricsForSingleAlloc(e *Exporter, w *sync.WaitGroup, allocStub *api
 	allocCount.With(prometheus.Labels{
 		"client_status":  alloc.ClientStatus,
 		"desired_status": alloc.DesiredStatus,
-		"job_type":       job.Type,
+		"job_type":       *job.Type,
 		"job_id":         alloc.JobID,
 		"task_group":     alloc.TaskGroup,
 		"node_id":        alloc.NodeID,
@@ -552,7 +545,7 @@ func collectMetricsForSingleAlloc(e *Exporter, w *sync.WaitGroup, allocStub *api
 		taskCount.With(prometheus.Labels{
 			"state":    task.State,
 			"failed":   strconv.FormatBool(task.Failed),
-			"job_type": job.Type,
+			"job_type": *job.Type,
 			"node_id":  alloc.NodeID,
 		}).Add(1)
 	}
