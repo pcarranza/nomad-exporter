@@ -50,11 +50,6 @@ var (
 		"How many jobs are there in the cluster.",
 		nil, nil,
 	)
-	allocationCount = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocations_total"),
-		"How many allocations are there in the cluster.",
-		nil, nil,
-	)
 	allocationMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes"),
 		"Allocation memory usage",
@@ -94,58 +89,59 @@ var (
 	nodeResourceMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_resource_memory_megabytes"),
 		"Amount of allocatable memory the node has in MB",
-		[]string{"node", "datacenter"}, nil,
+		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 	nodeAllocatedMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_allocated_memory_megabytes"),
 		"Amount of memory allocated to tasks on the node in MB",
-		[]string{"node", "datacenter"}, nil,
+		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 	nodeUsedMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_used_memory_bytes"),
 		"Amount of memory used on the node in MB",
-		[]string{"node", "datacenter"}, nil,
+		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 	nodeResourceCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_resource_cpu_megahertz"),
 		"Amount of allocatable CPU the node has in MHz",
-		[]string{"node", "datacenter"}, nil,
+		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 	nodeAllocatedCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_allocated_cpu_megahertz"),
 		"Amount of allocated CPU on the node in MHz",
-		[]string{"node", "datacenter"}, nil,
+		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 	nodeUsedCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_used_cpu_megahertz"),
 		"Amount of CPU used on the node in MHz",
-		[]string{"node", "datacenter"}, nil,
+		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 
-	allocCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	allocation = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "allocs",
-		Help:      "the number of allocs",
+		Name:      "allocation",
+		Help:      "allocation labeled with runtime information",
 	},
 		[]string{
-			"client_status",
+			"status",
 			"desired_status",
 			"job_type",
 			"job_id",
 			"task_group",
 			"node_id",
+			"node_name",
 		},
 	)
 	evalCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "evals",
+		Name:      "evals_total",
 		Help:      "the number of evaluations",
 	},
 		[]string{"status"},
 	)
 	taskCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "tasks",
+		Name:      "tasks_total",
 		Help:      "the number of tasks",
 	},
 		[]string{
@@ -153,12 +149,13 @@ var (
 			"failed",
 			"job_type",
 			"node_id",
+			"node_name",
 		},
 	)
 
 	deploymentCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "deployments",
+		Name:      "deployments_total",
 		Help:      "the number of deployments",
 	},
 		[]string{
@@ -166,9 +163,10 @@ var (
 			"job_id",
 		},
 	)
+
 	deploymentTaskGroupDesiredCanaries = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "deployment_task_group_desired_canaries",
+		Name:      "deployment_task_group_desired_canaries_total",
 		Help:      "the number of desired canaries for the task group",
 	},
 		[]string{
@@ -176,8 +174,10 @@ var (
 			"deployment_id",
 			"task_group",
 			"promoted",
+			"auto_revert",
 		},
 	)
+
 	deploymentTaskGroupDesiredTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "deployment_task_group_desired_total",
@@ -188,11 +188,13 @@ var (
 			"deployment_id",
 			"task_group",
 			"promoted",
+			"auto_revert",
 		},
 	)
+
 	deploymentTaskGroupPlacedAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "deployment_task_group_placed_allocs",
+		Name:      "deployment_task_group_placed_allocs_total",
 		Help:      "the number of placed allocs for the task group",
 	},
 		[]string{
@@ -200,11 +202,13 @@ var (
 			"deployment_id",
 			"task_group",
 			"promoted",
+			"auto_revert",
 		},
 	)
+
 	deploymentTaskGroupHealthyAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "deployment_task_group_healthy_allocs",
+		Name:      "deployment_task_group_healthy_allocs_total",
 		Help:      "the number of healthy allocs for the task group",
 	},
 		[]string{
@@ -212,11 +216,13 @@ var (
 			"deployment_id",
 			"task_group",
 			"promoted",
+			"auto_revert",
 		},
 	)
+
 	deploymentTaskGroupUnhealthyAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
-		Name:      "deployment_task_group_unhealthy_allocs",
+		Name:      "deployment_task_group_unhealthy_allocs_total",
 		Help:      "the number of unhealthy allocs for the task group",
 	},
 		[]string{
@@ -224,247 +230,10 @@ var (
 			"deployment_id",
 			"task_group",
 			"promoted",
+			"auto_revert",
 		},
 	)
 )
-
-func allocationsByStatus(allocs []*api.AllocationListStub, status string) []*api.AllocationListStub {
-	var resp []*api.AllocationListStub
-	for _, a := range allocs {
-		if a.ClientStatus == status {
-			resp = append(resp, a)
-		}
-	}
-	return resp
-}
-
-// Exporter is a nomad exporter
-type Exporter struct {
-	client *api.Client
-}
-
-func newExporter(cfg *api.Config) (*Exporter, error) {
-	client, err := api.NewClient(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return &Exporter{
-		client: client,
-	}, nil
-}
-
-// Describe implements Collector interface.
-func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- up
-	ch <- clusterServers
-	ch <- nodeCount
-	ch <- nodeStatus
-	ch <- allocationCount
-	ch <- jobCount
-	ch <- allocationMemory
-	ch <- allocationCPU
-	ch <- allocationCPUThrottled
-	ch <- allocationMemoryLimit
-	ch <- taskCPUPercent
-	ch <- taskCPUTotalTicks
-	ch <- taskMemoryRssBytes
-	ch <- nodeResourceMemory
-	ch <- nodeAllocatedMemory
-	ch <- nodeUsedMemory
-	ch <- nodeResourceCPU
-	ch <- nodeAllocatedCPU
-	ch <- nodeUsedCPU
-}
-
-// Collect collects nomad metrics
-func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	localIPs := NewLocalIPs()
-	leader, err := e.client.Status().Leader()
-	if err != nil {
-		ch <- prometheus.MustNewConstMetric(
-			up, prometheus.GaugeValue, 0,
-		)
-		logError(err)
-		return
-	}
-
-	ch <- prometheus.MustNewConstMetric(
-		clusterLeader, prometheus.GaugeValue, localIPs.IsHostname(leader),
-	)
-
-	if err := e.collectPeerMetrics(ch); err != nil {
-		logError(err)
-		return
-	}
-
-	jobs, _, err := e.client.Jobs().List(&api.QueryOptions{})
-	if err != nil {
-		logError(err)
-		return
-	}
-	ch <- prometheus.MustNewConstMetric(
-		jobCount, prometheus.GaugeValue, float64(len(jobs)),
-	)
-
-	allocs, _, err := e.client.Allocations().List(&api.QueryOptions{})
-	if err != nil {
-		logError(err)
-		return
-	}
-
-	err = collectAllocMetrics(e, ch)
-	if err != nil {
-		logError(err)
-		return
-	}
-
-	err = collectEvalMetrics(e, ch)
-	if err != nil {
-		logError(err)
-		return
-	}
-
-	err = collectDeploymentMetrics(e, ch)
-	if err != nil {
-		logError(err)
-		return
-	}
-
-	runningAllocs := allocationsByStatus(allocs, "running")
-
-	ch <- prometheus.MustNewConstMetric(
-		allocationCount, prometheus.GaugeValue, float64(len(runningAllocs)),
-	)
-
-	var w sync.WaitGroup
-	for _, a := range runningAllocs {
-		w.Add(1)
-		go func(a *api.AllocationListStub) {
-			defer w.Done()
-			alloc, _, err := e.client.Allocations().Info(a.ID, &api.QueryOptions{})
-			if err != nil {
-				logError(err)
-				return
-			}
-
-			stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{})
-			if err != nil {
-				logError(err)
-				return
-			}
-
-			node, _, err := e.client.Nodes().Info(alloc.NodeID, &api.QueryOptions{})
-			if err != nil {
-				logError(err)
-				return
-			}
-
-			labelValues := []string{
-				*alloc.Job.Name,
-				alloc.TaskGroup,
-				alloc.Name,
-				*alloc.Job.Region,
-				node.Datacenter,
-				node.Name,
-			}
-			ch <- prometheus.MustNewConstMetric(
-				allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, labelValues...,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), labelValues...,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				allocationMemory, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), labelValues...,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				allocationMemoryLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB), labelValues...,
-			)
-			for taskName, taskStats := range stats.Tasks {
-				taskLabels := append(labelValues, taskName)
-				ch <- prometheus.MustNewConstMetric(
-					taskCPUPercent, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.Percent, taskLabels...,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					taskCPUTotalTicks, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.TotalTicks, taskLabels...,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					taskMemoryRssBytes, prometheus.GaugeValue, float64(taskStats.ResourceUsage.MemoryStats.RSS), taskLabels...,
-				)
-			}
-		}(a)
-	}
-}
-
-func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
-	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get nodes list: %s", err)
-	}
-	ch <- prometheus.MustNewConstMetric(
-		nodeCount, prometheus.GaugeValue, float64(len(nodes)),
-	)
-	var w sync.WaitGroup
-	for _, node := range nodes {
-		w.Add(1)
-
-		state := 1
-		drain := strconv.FormatBool(node.Drain)
-		if node.Status == "down" {
-			state = 0
-		}
-		ch <- prometheus.MustNewConstMetric(
-			nodeStatus, prometheus.GaugeValue, float64(state), node.Datacenter, node.NodeClass, node.Name, drain,
-		)
-
-		go func(a *api.NodeListStub) {
-			defer w.Done()
-			node, _, err := e.client.Nodes().Info(a.ID, &api.QueryOptions{})
-			if err != nil {
-				logError(fmt.Errorf("failed to get node %s info: %s", node.Name, err))
-				return
-			}
-			runningAllocs, err := getRunningAllocs(e.client, node.ID)
-			if err != nil {
-				logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
-				return
-			}
-			if node.Status == "ready" {
-				nodeStats, err := e.client.Nodes().Stats(a.ID, &api.QueryOptions{})
-				if err != nil {
-					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
-					return
-				}
-
-				var allocatedCPU, allocatedMemory int
-				for _, alloc := range runningAllocs {
-					allocatedCPU += *alloc.Resources.CPU
-					allocatedMemory += *alloc.Resources.MemoryMB
-				}
-
-				ch <- prometheus.MustNewConstMetric(
-					nodeResourceMemory, prometheus.GaugeValue, float64(*node.Resources.MemoryMB), node.Name, node.Datacenter,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeAllocatedMemory, prometheus.GaugeValue, float64(allocatedMemory), node.Name, node.Datacenter,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used), node.Name, node.Datacenter,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeResourceCPU, prometheus.GaugeValue, float64(*node.Resources.CPU), node.Name, node.Datacenter,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeAllocatedCPU, prometheus.GaugeValue, float64(allocatedCPU), node.Name, node.Datacenter,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeUsedCPU, prometheus.GaugeValue, float64(math.Floor(nodeStats.CPUTicksConsumed)), node.Name, node.Datacenter,
-				)
-			}
-		}(node)
-	}
-	w.Wait()
-	return nil
-}
 
 func main() {
 	var (
@@ -483,9 +252,10 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Fprintln(os.Stdout, version.Print("nomad_exporter"))
+		fmt.Println(version.Print("nomad_exporter"))
 		os.Exit(0)
 	}
+
 	cfg := api.DefaultConfig()
 	cfg.Address = *nomadServer
 
@@ -525,82 +295,345 @@ func main() {
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
 
+// Exporter is a nomad exporter
+type Exporter struct {
+	client *api.Client
+}
+
+func newExporter(cfg *api.Config) (*Exporter, error) {
+	client, err := api.NewClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("could not create exporter: %s", err)
+	}
+	return &Exporter{
+		client: client,
+	}, nil
+}
+
+// Describe implements Collector interface.
+func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
+	ch <- up
+	ch <- clusterServers
+	ch <- nodeCount
+	ch <- nodeStatus
+	ch <- jobCount
+	ch <- allocationMemory
+	ch <- allocationCPU
+	ch <- allocationCPUThrottled
+	ch <- allocationMemoryLimit
+	ch <- taskCPUPercent
+	ch <- taskCPUTotalTicks
+	ch <- taskMemoryRssBytes
+	ch <- nodeResourceMemory
+	ch <- nodeAllocatedMemory
+	ch <- nodeUsedMemory
+	ch <- nodeResourceCPU
+	ch <- nodeAllocatedCPU
+	ch <- nodeUsedCPU
+
+	allocation.Describe(ch)
+	evalCount.Describe(ch)
+	taskCount.Describe(ch)
+
+	deploymentCount.Describe(ch)
+
+	deploymentTaskGroupDesiredCanaries.Describe(ch)
+	deploymentTaskGroupDesiredTotal.Describe(ch)
+	deploymentTaskGroupPlacedAllocs.Describe(ch)
+	deploymentTaskGroupHealthyAllocs.Describe(ch)
+	deploymentTaskGroupUnhealthyAllocs.Describe(ch)
+}
+
+// Collect collects nomad metrics
+func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+	if err := e.collectLeader(ch); err != nil {
+		ch <- prometheus.MustNewConstMetric(
+			up, prometheus.GaugeValue, 0,
+		)
+		logError(err)
+		return
+	}
+	ch <- prometheus.MustNewConstMetric(
+		up, prometheus.GaugeValue, 1,
+	)
+
+	if err := e.collectPeerMetrics(ch); err != nil {
+		logError(err)
+		return
+	}
+
+	if err := e.collectJobsMetrics(ch); err != nil {
+		logError(err)
+		return
+	}
+
+	if err := e.collectAllocations(ch); err != nil {
+		logError(err)
+		return
+	}
+
+	if err := e.collectEvalMetrics(ch); err != nil {
+		logError(err)
+		return
+	}
+
+	if err := e.collectDeploymentMetrics(ch); err != nil {
+		logError(err)
+		return
+	}
+}
+
+func (e *Exporter) collectLeader(ch chan<- prometheus.Metric) error {
+	localIPs := NewLocalIPs()
+	leader, err := e.client.Status().Leader()
+	if err != nil {
+		return fmt.Errorf("could not collect leader: %s", err)
+	}
+	ch <- prometheus.MustNewConstMetric(
+		clusterLeader, prometheus.GaugeValue, localIPs.IsHostname(leader),
+	)
+	return nil
+}
+
+func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
+	jobs, _, err := e.client.Jobs().List(&api.QueryOptions{})
+	if err != nil {
+		return fmt.Errorf("could not get jobs: %s", err)
+	}
+	ch <- prometheus.MustNewConstMetric(
+		jobCount, prometheus.GaugeValue, float64(len(jobs)),
+	)
+	return nil
+}
+
+func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
+	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get nodes list: %s", err)
+	}
+	ch <- prometheus.MustNewConstMetric(
+		nodeCount, prometheus.GaugeValue, float64(len(nodes)),
+	)
+
+	var w sync.WaitGroup
+
+	for _, node := range nodes {
+		state := 1
+		drain := strconv.FormatBool(node.Drain)
+		if node.Status == "down" {
+			state = 0
+		}
+		ch <- prometheus.MustNewConstMetric(
+			nodeStatus, prometheus.GaugeValue, float64(state),
+			node.Datacenter, node.NodeClass, node.Name, drain,
+		)
+
+		w.Add(1)
+		go func(a *api.NodeListStub) {
+			defer w.Done()
+
+			node, _, err := e.client.Nodes().Info(a.ID, &api.QueryOptions{})
+			if err != nil {
+				logError(fmt.Errorf("failed to get node %s info: %s", node.Name, err))
+				return
+			}
+
+			runningAllocs, err := e.getRunningAllocs(node.ID)
+			if err != nil {
+				logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
+				return
+			}
+			if node.Status == "ready" {
+				nodeStats, err := e.client.Nodes().Stats(a.ID, &api.QueryOptions{})
+				if err != nil {
+					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
+					return
+				}
+
+				var allocatedCPU, allocatedMemory int
+				for _, alloc := range runningAllocs {
+					allocatedCPU += *alloc.Resources.CPU
+					allocatedMemory += *alloc.Resources.MemoryMB
+				}
+
+				nodeLabels := []string{node.ID, node.Name, node.Datacenter}
+				ch <- prometheus.MustNewConstMetric(
+					nodeResourceMemory, prometheus.GaugeValue, float64(*node.Resources.MemoryMB),
+					nodeLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeAllocatedMemory, prometheus.GaugeValue, float64(allocatedMemory),
+					nodeLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used),
+					nodeLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeResourceCPU, prometheus.GaugeValue, float64(*node.Resources.CPU),
+					nodeLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeAllocatedCPU, prometheus.GaugeValue, float64(allocatedCPU),
+					nodeLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeUsedCPU, prometheus.GaugeValue, float64(math.Floor(nodeStats.CPUTicksConsumed)),
+					nodeLabels...,
+				)
+			}
+		}(node)
+	}
+
+	w.Wait()
+
+	return nil
+}
+
+func (e *Exporter) getRunningAllocs(nodeID string) ([]*api.Allocation, error) {
+	var allocs []*api.Allocation
+
+	// Query the node allocations
+	nodeAllocs, _, err := e.client.Nodes().Allocations(nodeID, nil)
+
+	// Filter list to only running allocations
+	for _, alloc := range nodeAllocs {
+		if alloc.ClientStatus == "running" {
+			allocs = append(allocs, alloc)
+		}
+	}
+	return allocs, err
+}
+
 func (e *Exporter) collectPeerMetrics(ch chan<- prometheus.Metric) error {
 	peers, err := e.client.Status().Peers()
 	if err != nil {
 		return fmt.Errorf("failed to get peer metrics: %s", err)
 	}
 	ch <- prometheus.MustNewConstMetric(
-		up, prometheus.GaugeValue, 1,
-	)
-	ch <- prometheus.MustNewConstMetric(
 		clusterServers, prometheus.GaugeValue, float64(len(peers)),
 	)
 	return nil
 }
 
-func collectMetricsForSingleAlloc(e *Exporter, w *sync.WaitGroup, allocStub *api.AllocationListStub) {
-	defer w.Done()
+func (e *Exporter) collectMetricsForSingleAlloc(w *sync.WaitGroup) {
 
-	alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{})
-	if err != nil {
-		logError(err)
-		return
-	}
-
-	job := alloc.Job
-
-	allocCount.With(prometheus.Labels{
-		"client_status":  alloc.ClientStatus,
-		"desired_status": alloc.DesiredStatus,
-		"job_type":       *job.Type,
-		"job_id":         alloc.JobID,
-		"task_group":     alloc.TaskGroup,
-		"node_id":        alloc.NodeID,
-	}).Add(1)
-
-	taskStates := alloc.TaskStates
-
-	for _, task := range taskStates {
-		taskCount.With(prometheus.Labels{
-			"state":    task.State,
-			"failed":   strconv.FormatBool(task.Failed),
-			"job_type": *job.Type,
-			"node_id":  alloc.NodeID,
-		}).Add(1)
-	}
 }
 
-func collectAllocMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
-	allocCount.Reset()
+func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
+	allocation.Reset()
 	taskCount.Reset()
 
 	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get allocations: %s", err)
 	}
 
-	// get all the allocs in parallel with goroutines.
-	// then use the WaitGroup to wait for all of them all to finish.
 	var w sync.WaitGroup
 
 	for _, allocStub := range allocStubs {
 		w.Add(1)
-		go collectMetricsForSingleAlloc(e, &w, allocStub)
+
+		go func(allocStub *api.AllocationListStub) {
+			defer w.Done()
+
+			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{})
+			if err != nil {
+				logError(err)
+				return
+			}
+
+			node, _, err := e.client.Nodes().Info(alloc.NodeID, &api.QueryOptions{})
+			if err != nil {
+				logError(err)
+				return
+			}
+
+			job := alloc.Job
+
+			allocation.With(prometheus.Labels{
+				"status":         alloc.ClientStatus,
+				"desired_status": alloc.DesiredStatus,
+				"job_type":       *job.Type,
+				"job_id":         alloc.JobID,
+				"task_group":     alloc.TaskGroup,
+				"node_id":        node.ID,
+				"node_name":      node.Name,
+			}).Add(1)
+
+			taskStates := alloc.TaskStates
+
+			for _, task := range taskStates {
+				taskCount.With(prometheus.Labels{
+					"state":     task.State,
+					"failed":    strconv.FormatBool(task.Failed),
+					"job_type":  *job.Type,
+					"node_id":   node.ID,
+					"node_name": node.Name,
+				}).Add(1)
+			}
+
+			// Return unless the allocation is running
+			if allocStub.ClientStatus != "running" {
+				return
+			}
+
+			stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{})
+			if err != nil {
+				logError(err)
+				return
+			}
+
+			allocationLabels := []string{
+				*alloc.Job.Name,
+				alloc.TaskGroup,
+				alloc.Name,
+				*alloc.Job.Region,
+				node.Datacenter,
+				node.Name,
+			}
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationMemory, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationMemoryLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB), allocationLabels...,
+			)
+
+			for taskName, taskStats := range stats.Tasks {
+				taskLabels := append(allocationLabels, taskName)
+				ch <- prometheus.MustNewConstMetric(
+					taskCPUPercent, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.Percent, taskLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					taskCPUTotalTicks, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.TotalTicks, taskLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					taskMemoryRssBytes, prometheus.GaugeValue, float64(taskStats.ResourceUsage.MemoryStats.RSS), taskLabels...,
+				)
+			}
+
+		}(allocStub)
 	}
 
 	w.Wait()
-	allocCount.Collect(ch)
+
+	allocation.Collect(ch)
 	taskCount.Collect(ch)
 	return nil
 }
 
-func collectEvalMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
+func (e *Exporter) collectEvalMetrics(ch chan<- prometheus.Metric) error {
 	evalCount.Reset()
 
 	evals, _, err := e.client.Evaluations().List(&api.QueryOptions{})
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get evaluation metrics: %s", err)
 	}
 
 	for _, eval := range evals {
@@ -614,7 +647,7 @@ func collectEvalMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
 	return nil
 }
 
-func collectDeploymentMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
+func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 	deploymentCount.Reset()
 	deploymentTaskGroupDesiredCanaries.Reset()
 	deploymentTaskGroupDesiredTotal.Reset()
@@ -636,21 +669,24 @@ func collectDeploymentMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
 		}).Add(1)
 
 		for taskGroupName, taskGroup := range taskGroups {
-			deploymentTaskGroupDesiredCanaries.WithLabelValues(dep.JobID, dep.ID,
+			deploymentLabels := []string{
+				dep.JobID,
+				dep.ID,
 				taskGroupName,
-				strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.DesiredCanaries))
-			deploymentTaskGroupDesiredTotal.WithLabelValues(dep.JobID, dep.ID,
-				taskGroupName,
-				strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.DesiredTotal))
-			deploymentTaskGroupPlacedAllocs.WithLabelValues(dep.JobID, dep.ID,
-				taskGroupName,
-				strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.PlacedAllocs))
-			deploymentTaskGroupHealthyAllocs.WithLabelValues(dep.JobID, dep.ID,
-				taskGroupName,
-				strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.HealthyAllocs))
-			deploymentTaskGroupUnhealthyAllocs.WithLabelValues(dep.JobID, dep.ID,
-				taskGroupName,
-				strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.UnhealthyAllocs))
+				strconv.FormatBool(taskGroup.Promoted),
+				strconv.FormatBool(taskGroup.AutoRevert),
+			}
+
+			deploymentTaskGroupDesiredCanaries.WithLabelValues(
+				deploymentLabels...).Set(float64(taskGroup.DesiredCanaries))
+			deploymentTaskGroupDesiredTotal.WithLabelValues(
+				deploymentLabels...).Set(float64(taskGroup.DesiredTotal))
+			deploymentTaskGroupPlacedAllocs.WithLabelValues(
+				deploymentLabels...).Set(float64(taskGroup.PlacedAllocs))
+			deploymentTaskGroupHealthyAllocs.WithLabelValues(
+				deploymentLabels...).Set(float64(taskGroup.HealthyAllocs))
+			deploymentTaskGroupUnhealthyAllocs.WithLabelValues(
+				deploymentLabels...).Set(float64(taskGroup.UnhealthyAllocs))
 		}
 	}
 

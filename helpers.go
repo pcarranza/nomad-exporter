@@ -2,28 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/hashicorp/nomad/api"
 	"log"
 	"net"
 )
 
 func logError(err error) {
 	log.Println("Query error", err)
-	return
-}
-
-func getRunningAllocs(client *api.Client, nodeID string) ([]*api.Allocation, error) {
-	var allocs []*api.Allocation
-
-	// Query the node allocations
-	nodeAllocs, _, err := client.Nodes().Allocations(nodeID, nil)
-	// Filter list to only running allocations
-	for _, alloc := range nodeAllocs {
-		if alloc.ClientStatus == "running" {
-			allocs = append(allocs, alloc)
-		}
-	}
-	return allocs, err
 }
 
 // LocalIPs provides an interface to determine if a hostname is localhost
