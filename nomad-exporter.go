@@ -1,4 +1,4 @@
-package main // import "github.com/Nomon/nomad-exporter"
+package main
 
 import (
 	"flag"
@@ -117,6 +117,111 @@ var (
 		"Amount of CPU used on the node in MHz",
 		[]string{"node", "datacenter"}, nil,
 	)
+
+	allocCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "allocs",
+		Help:      "the number of allocs",
+	},
+		[]string{
+			"client_status",
+			"desired_status",
+			"job_type",
+			"job_id",
+			"task_group",
+			"node_id",
+		},
+	)
+	evalCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "evals",
+		Help:      "the number of evaluations",
+	},
+		[]string{"status"},
+	)
+	taskCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "tasks",
+		Help:      "the number of tasks",
+	},
+		[]string{
+			"state",
+			"failed",
+			"job_type",
+			"node_id",
+		},
+	)
+
+	deploymentCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "deployments",
+		Help:      "the number of deployments",
+	},
+		[]string{
+			"status",
+			"job_id",
+		},
+	)
+	deploymentTaskGroupDesiredCanaries = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "deployment_task_group_desired_canaries",
+		Help:      "the number of desired canaries for the task group",
+	},
+		[]string{
+			"job_id",
+			"deployment_id",
+			"task_group",
+			"promoted",
+		},
+	)
+	deploymentTaskGroupDesiredTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "deployment_task_group_desired_total",
+		Help:      "the number of desired allocs for the task group",
+	},
+		[]string{
+			"job_id",
+			"deployment_id",
+			"task_group",
+			"promoted",
+		},
+	)
+	deploymentTaskGroupPlacedAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "deployment_task_group_placed_allocs",
+		Help:      "the number of placed allocs for the task group",
+	},
+		[]string{
+			"job_id",
+			"deployment_id",
+			"task_group",
+			"promoted",
+		},
+	)
+	deploymentTaskGroupHealthyAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "deployment_task_group_healthy_allocs",
+		Help:      "the number of healthy allocs for the task group",
+	},
+		[]string{
+			"job_id",
+			"deployment_id",
+			"task_group",
+			"promoted",
+		},
+	)
+	deploymentTaskGroupUnhealthyAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: namespace,
+		Name:      "deployment_task_group_unhealthy_allocs",
+		Help:      "the number of unhealthy allocs for the task group",
+	},
+		[]string{
+			"job_id",
+			"deployment_id",
+			"task_group",
+			"promoted",
+		},
+	)
 )
 
 func AllocationsByStatus(allocs []*api.AllocationListStub, status string) []*api.AllocationListStub {
@@ -182,6 +287,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(
 		clusterServers, prometheus.GaugeValue, float64(len(peers)),
 	)
+
 	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{})
 	if err != nil {
 		logError(err)
@@ -209,6 +315,30 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		jobCount, prometheus.GaugeValue, float64(len(jobs)),
 	)
 	allocs, _, err := e.client.Allocations().List(&api.QueryOptions{})
+	if err != nil {
+		logError(err)
+		return
+	}
+
+	err = collectPeersMetrics(e, ch)
+	if err != nil {
+		logError(err)
+		return
+	}
+
+	err = collectAllocMetrics(e, ch)
+	if err != nil {
+		logError(err)
+		return
+	}
+
+	err = collectEvalMetrics(e, ch)
+	if err != nil {
+		logError(err)
+		return
+	}
+
+	err = collectDeploymentMetrics(e, ch)
 	if err != nil {
 		logError(err)
 		return
@@ -318,20 +448,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	w.Wait()
 }
 
-func getRunningAllocs(client *api.Client, nodeID string) ([]*api.Allocation, error) {
-	var allocs []*api.Allocation
-
-	// Query the node allocations
-	nodeAllocs, _, err := client.Nodes().Allocations(nodeID, nil)
-	// Filter list to only running allocations
-	for _, alloc := range nodeAllocs {
-		if alloc.ClientStatus == "running" {
-			allocs = append(allocs, alloc)
-		}
-	}
-	return allocs, err
-}
-
 func main() {
 	var (
 		showVersion   = flag.Bool("version", false, "Print version information.")
@@ -394,4 +510,133 @@ func main() {
 func logError(err error) {
 	log.Println("Query error", err)
 	return
+}
+
+func getRunningAllocs(client *api.Client, nodeID string) ([]*api.Allocation, error) {
+	var allocs []*api.Allocation
+
+	// Query the node allocations
+	nodeAllocs, _, err := client.Nodes().Allocations(nodeID, nil)
+	// Filter list to only running allocations
+	for _, alloc := range nodeAllocs {
+		if alloc.ClientStatus == "running" {
+			allocs = append(allocs, alloc)
+		}
+	}
+	return allocs, err
+}
+
+func collectMetricsForSingleAlloc(e *Exporter, w *sync.WaitGroup, allocStub *api.AllocationListStub) {
+	defer w.Done()
+
+	alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{})
+	if err != nil {
+		logError(err)
+		return
+	}
+
+	job := alloc.Job
+
+	allocCount.With(prometheus.Labels{
+		"client_status":  alloc.ClientStatus,
+		"desired_status": alloc.DesiredStatus,
+		"job_type":       job.Type,
+		"job_id":         alloc.JobID,
+		"task_group":     alloc.TaskGroup,
+		"node_id":        alloc.NodeID,
+	}).Add(1)
+
+	taskStates := alloc.TaskStates
+
+	for _, task := range taskStates {
+		taskCount.With(prometheus.Labels{
+			"state":    task.State,
+			"failed":   strconv.FormatBool(task.Failed),
+			"job_type": job.Type,
+			"node_id":  alloc.NodeID,
+		}).Add(1)
+	}
+}
+
+func collectAllocMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
+	allocCount.Reset()
+	taskCount.Reset()
+
+	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{})
+	if err != nil {
+		return err
+	}
+
+	// get all the allocs in parallel with goroutines.
+	// then use the WaitGroup to wait for all of them all to finish.
+	var w sync.WaitGroup
+
+	for _, allocStub := range allocStubs {
+		w.Add(1)
+		go collectMetricsForSingleAlloc(e, &w, allocStub)
+	}
+
+	w.Wait()
+	allocCount.Collect(ch)
+	taskCount.Collect(ch)
+	return nil
+}
+
+func collectEvalMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
+	evalCount.Reset()
+
+	evals, _, err := e.client.Evaluations().List(&api.QueryOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, eval := range evals {
+		evalCount.With(prometheus.Labels{
+			"status": eval.Status,
+		}).Add(1)
+	}
+
+	evalCount.Collect(ch)
+
+	return nil
+}
+
+func collectDeploymentMetrics(e *Exporter, ch chan<- prometheus.Metric) error {
+	deploymentCount.Reset()
+	deploymentTaskGroupDesiredCanaries.Reset()
+	deploymentTaskGroupDesiredTotal.Reset()
+	deploymentTaskGroupPlacedAllocs.Reset()
+	deploymentTaskGroupHealthyAllocs.Reset()
+	deploymentTaskGroupUnhealthyAllocs.Reset()
+
+	deployments, _, err := e.client.Deployments().List(&api.QueryOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, dep := range deployments {
+		taskGroups := dep.TaskGroups
+
+		deploymentCount.With(prometheus.Labels{
+			"status": dep.Status,
+			"job_id": dep.JobID,
+		}).Add(1)
+
+		for taskGroupName, taskGroup := range taskGroups {
+			deploymentTaskGroupDesiredCanaries.WithLabelValues(dep.JobID, dep.ID, taskGroupName, strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.DesiredCanaries))
+			deploymentTaskGroupDesiredTotal.WithLabelValues(dep.JobID, dep.ID, taskGroupName, strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.DesiredTotal))
+			deploymentTaskGroupPlacedAllocs.WithLabelValues(dep.JobID, dep.ID, taskGroupName, strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.PlacedAllocs))
+			deploymentTaskGroupHealthyAllocs.WithLabelValues(dep.JobID, dep.ID, taskGroupName, strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.HealthyAllocs))
+			deploymentTaskGroupUnhealthyAllocs.WithLabelValues(dep.JobID, dep.ID, taskGroupName, strconv.FormatBool(taskGroup.Promoted)).Set(float64(taskGroup.UnhealthyAllocs))
+		}
+	}
+
+	deploymentCount.Collect(ch)
+	deploymentTaskGroupDesiredCanaries.Collect(ch)
+	deploymentTaskGroupDesiredTotal.Collect(ch)
+	deploymentTaskGroupPlacedAllocs.Collect(ch)
+	deploymentTaskGroupHealthyAllocs.Collect(ch)
+	deploymentTaskGroupUnhealthyAllocs.Collect(ch)
+
+	return nil
 }
