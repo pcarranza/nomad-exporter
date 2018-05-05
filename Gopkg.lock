@@ -148,7 +148,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/prometheus/common"
-  packages = ["expfmt","internal/bitbucket.org/ww/goautoneg","model","version"]
+  packages = ["expfmt","internal/bitbucket.org/ww/goautoneg","model"]
   revision = "d811d2e9bf898806ecfb6ef6296774b13ffc314c"
 
 [[projects]]
@@ -158,26 +158,31 @@
   revision = "8b1c2da0d56deffdbb9e48d4414b4e674bd8083e"
 
 [[projects]]
+  name = "github.com/sirupsen/logrus"
+  packages = ["."]
+  revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
+  version = "v1.0.5"
+
+[[projects]]
   name = "github.com/ugorji/go"
   packages = ["codec"]
-  revision = "b4c50a2b199d93b13dc15e78929cfb23bfdf21ab"
-  version = "v1.1.1"
+  revision = "8c0409fcbb70099c748d71f714529204975f6c3f"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
-  packages = ["blake2b"]
+  packages = ["blake2b","ssh/terminal"]
   revision = "1f94bef427e370e425e55b172f3b5e300ef38304"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["cpu"]
+  packages = ["cpu","unix","windows"]
   revision = "6f686a352de66814cdd080d970febae7767857a3"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "2d27bb0bf58647b59ec7f6ab8077242d7fb6adab184d6e4daacf70c758a590c7"
+  inputs-digest = "2737ca7885d1f21e8c29d2c6edeb63c251d70e50710c585540675d4a6192333c"
   solver-name = "gps-cdcl"
   solver-version = 1

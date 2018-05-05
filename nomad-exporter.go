@@ -3,9 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"math"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/pcarranza/nomad-exporter/version"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -27,6 +29,12 @@ var (
 		"Was the last query of Nomad successful.",
 		nil, nil,
 	)
+	clientErrors = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "client_errors_total",
+			Help:      "Number of errors that were accounted for",
+		})
 	clusterLeader = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "leader"),
 		"wether the current host is the cluster leader",
@@ -36,17 +44,17 @@ var (
 		"How many peers (servers) are in the Raft cluster.",
 		nil, nil,
 	)
-	nodeCount = prometheus.NewDesc(
+	serfLanMembers = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_members"),
 		"How many members are in the cluster.",
 		nil, nil,
 	)
-	nodeStatus = prometheus.NewDesc(
+	serfLanMembersStatus = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_member_status"),
 		"Describe member state",
 		[]string{"datacenter", "class", "node", "drain"}, nil,
 	)
-	jobCount = prometheus.NewDesc(
+	jobsTotal = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "jobs_total"),
 		"How many jobs are there in the cluster.",
 		nil, nil,
@@ -246,8 +254,8 @@ func main() {
 			"web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		nomadServer = flag.String(
 			"nomad.server", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
-		nomadTimeout = flag.String(
-			"nomad.timeout", "30", "HTTP timeout to contact Nomad agent.")
+		nomadTimeout = flag.Int(
+			"nomad.timeout", 30, "HTTP timeout to contact Nomad agent.")
 		tlsCaFile = flag.String(
 			"tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
 		tlsCaPath = flag.String(
@@ -260,6 +268,9 @@ func main() {
 			"tls.insecure", false, "insecure enables or disables SSL verification")
 		tlsServerName = flag.String(
 			"tls.tls-server-name", "", "tls-server-name sets the SNI for Nomad ssl connection")
+		debug = flag.Bool(
+			"debug", false, "enable debug log level",
+		)
 	)
 	flag.Parse()
 
@@ -268,8 +279,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *debug {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
 	cfg := api.DefaultConfig()
 	cfg.Address = *nomadServer
+	cfg.SetTimeout(time.Duration(*nomadTimeout) * time.Second)
 
 	if strings.HasPrefix(cfg.Address, "https://") {
 		cfg.TLSConfig.CACert = *tlsCaFile
@@ -280,15 +296,9 @@ func main() {
 		cfg.TLSConfig.TLSServerName = *tlsServerName
 	}
 
-	timeout, err := strconv.Atoi(*nomadTimeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-	cfg.SetTimeout(time.Duration(timeout) * time.Second)
-
 	exporter, err := newExporter(cfg)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatalf("Could not create exporter: %s", err)
 	}
 	prometheus.MustRegister(exporter)
 
@@ -303,8 +313,8 @@ func main() {
              </html>`))
 	})
 
-	log.Println("Listening on", *listenAddress)
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+	logrus.Println("Listening on", *listenAddress)
+	logrus.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
 
 // Exporter is a nomad exporter
@@ -326,9 +336,9 @@ func newExporter(cfg *api.Config) (*Exporter, error) {
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
 	ch <- clusterServers
-	ch <- nodeCount
-	ch <- nodeStatus
-	ch <- jobCount
+	ch <- serfLanMembers
+	ch <- serfLanMembersStatus
+	ch <- jobsTotal
 	ch <- allocationMemotyBytes
 	ch <- allocationCPU
 	ch <- allocationCPUThrottled
@@ -354,6 +364,8 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	deploymentTaskGroupPlacedAllocs.Describe(ch)
 	deploymentTaskGroupHealthyAllocs.Describe(ch)
 	deploymentTaskGroupUnhealthyAllocs.Describe(ch)
+
+	clientErrors.Describe(ch)
 }
 
 // Collect collects nomad metrics
@@ -368,6 +380,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(
 		up, prometheus.GaugeValue, 1,
 	)
+
+	ch <- clientErrors
 
 	if err := e.collectPeerMetrics(ch); err != nil {
 		logError(err)
@@ -396,13 +410,34 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) collectLeader(ch chan<- prometheus.Metric) error {
-	localIPs := NewLocalIPs()
 	leader, err := e.client.Status().Leader()
 	if err != nil {
 		return fmt.Errorf("could not collect leader: %s", err)
 	}
+
+	logrus.Debugf("Leader is %s", leader)
+	logrus.Debugf("Client address is %s", e.client.Address())
+
+	leaderHostname, _, err := net.SplitHostPort(leader)
+	if err != nil {
+		return fmt.Errorf("leader is not a host:port but %s: %s", leader, err)
+	}
+
+	clientHost, err := url.Parse(e.client.Address())
+	if err != nil {
+		return fmt.Errorf("client address %s can't be parsed as a url: %s", e.client.Address(), err)
+	}
+
+	logrus.Debugf("Client Hostname is %s", clientHost.Hostname())
+	logrus.Debugf("Leader Hostname is %s", leaderHostname)
+
+	var isLeader float64
+	if leaderHostname == clientHost.Hostname() {
+		isLeader = 1
+	}
+
 	ch <- prometheus.MustNewConstMetric(
-		clusterLeader, prometheus.GaugeValue, localIPs.IsHostname(leader),
+		clusterLeader, prometheus.GaugeValue, isLeader,
 	)
 	return nil
 }
@@ -413,7 +448,7 @@ func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
 		return fmt.Errorf("could not get jobs: %s", err)
 	}
 	ch <- prometheus.MustNewConstMetric(
-		jobCount, prometheus.GaugeValue, float64(len(jobs)),
+		jobsTotal, prometheus.GaugeValue, float64(len(jobs)),
 	)
 	return nil
 }
@@ -424,7 +459,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 		return fmt.Errorf("failed to get nodes list: %s", err)
 	}
 	ch <- prometheus.MustNewConstMetric(
-		nodeCount, prometheus.GaugeValue, float64(len(nodes)),
+		serfLanMembers, prometheus.GaugeValue, float64(len(nodes)),
 	)
 
 	var w sync.WaitGroup
@@ -436,7 +471,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			state = 0
 		}
 		ch <- prometheus.MustNewConstMetric(
-			nodeStatus, prometheus.GaugeValue, float64(state),
+			serfLanMembersStatus, prometheus.GaugeValue, float64(state),
 			node.Datacenter, node.NodeClass, node.Name, drain,
 		)
 
@@ -710,4 +745,9 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 	deploymentTaskGroupUnhealthyAllocs.Collect(ch)
 
 	return nil
+}
+
+func logError(err error) {
+	clientErrors.Inc()
+	logrus.Error(err)
 }
