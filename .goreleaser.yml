@@ -13,7 +13,7 @@ builds:
   goarm:
   - "6"
   main: .
-  ldflags: -s -w -X github.com/pcarranza/nomad-exporter.Version={{.Version}} -X github.com/pcarranza/nomad-exporter.Commit={{.Commit}} -X github.com/pcarranza/nomad-exporter.Date={{.Date}}
+  ldflags: -s -w -X github.com/pcarranza/nomad-exporter/version.Version={{.Version}} -X github.com/pcarranza/nomad-exporter/version.Commit={{.Commit}} -X github.com/pcarranza/nomad-exporter/version.Date={{.Date}}
   binary: nomad-exporter
 archive:
   name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm
