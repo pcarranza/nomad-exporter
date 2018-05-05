@@ -1,0 +1,47 @@
+project_name: nomad-exporter
+release:
+  github:
+    owner: pcarranza
+    name: nomad-exporter
+  name_template: '{{.Tag}}'
+builds:
+- goos:
+  - linux
+  - darwin
+  goarch:
+  - amd64
+  goarm:
+  - "6"
+  main: .
+  binary: nomad-exporter
+archive:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm
+    }}v{{ .Arm }}{{ end }}'
+  format: tar.gz
+  files:
+  - license*
+  - LICENSE*
+  - readme*
+  - README*
+  - changelog*
+  - CHANGELOG*
+snapshot:
+  name_template: SNAPSHOT-{{ .Commit }}
+checksum:
+  name_template: '{{ .ProjectName }}_{{ .Version }}_checksums.txt'
+dist: dist
+changelog:
+  filters:
+    exclude:
+      - typo
+      - Fix
+      - Merge
+      - WIP
+# dockers:
+#   - image: pcarranza/nomad-exporter
+#     goos: linux
+#     goarch: amd64
+#     goarm: ''
+#     binary: meeseeks-box
+#     dockerfile: Dockerfile.amd64
+#     latest: true
