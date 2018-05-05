@@ -14,7 +14,6 @@ import (
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/version"
 )
 
 const (
@@ -27,7 +26,8 @@ var (
 		"Was the last query of Nomad successful.",
 		nil, nil,
 	)
-	clusterLeader = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "leader"),
+	clusterLeader = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "leader"),
 		"wether the current host is the cluster leader",
 		nil, nil)
 	clusterServers = prometheus.NewDesc(
@@ -50,12 +50,12 @@ var (
 		"How many jobs are there in the cluster.",
 		nil, nil,
 	)
-	allocationMemory = prometheus.NewDesc(
+	allocationMemotyBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes"),
 		"Allocation memory usage",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
-	allocationMemoryLimit = prometheus.NewDesc(
+	allocationMemotyBytesLimit = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
 		"Allocation memory limit",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
@@ -87,13 +87,13 @@ var (
 	)
 
 	nodeResourceMemory = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "node_resource_memory_megabytes"),
-		"Amount of allocatable memory the node has in MB",
+		prometheus.BuildFQName(namespace, "", "node_resource_memory_bytes"),
+		"Amount of allocatable memory the node has in bytes",
 		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 	nodeAllocatedMemory = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "node_allocated_memory_megabytes"),
-		"Amount of memory allocated to tasks on the node in MB",
+		prometheus.BuildFQName(namespace, "", "node_allocated_memory_bytes"),
+		"Amount of memory allocated to tasks on the node in bytes",
 		[]string{"node_id", "node_name", "datacenter"}, nil,
 	)
 	nodeUsedMemory = prometheus.NewDesc(
@@ -237,22 +237,33 @@ var (
 
 func main() {
 	var (
-		showVersion   = flag.Bool("version", false, "Print version information.")
-		listenAddress = flag.String("web.listen-address", ":9172", "Address to listen on for web interface and telemetry.")
-		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		nomadServer   = flag.String("nomad.server", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
-		nomadTimeout  = flag.String("nomad.timeout", "30", "HTTP timeout to contact Nomad agent.")
-		tlsCaFile     = flag.String("tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
-		tlsCaPath     = flag.String("tls.ca-path", "", "ca-path is the path to a directory of PEM-encoded CA cert files to verify the connection to nomad server")
-		tlsCert       = flag.String("tls.cert-file", "", "cert-file is the path to the client certificate for Nomad communication")
-		tlsKey        = flag.String("tls.key-file", "", "key-file is the path to the key for cert-file")
-		tlsInsecure   = flag.Bool("tls.insecure", false, "insecure enables or disables SSL verification")
-		tlsServerName = flag.String("tls.tls-server-name", "", "tls-server-name sets the SNI for Nomad ssl connection")
+		showVersion = flag.Bool(
+			"version", false, "Print version information.")
+		listenAddress = flag.String(
+			"web.listen-address", ":9172", "Address to listen on for web interface and telemetry.")
+		metricsPath = flag.String(
+			"web.telemetry-path", "/metrics", "Path under which to expose metrics.")
+		nomadServer = flag.String(
+			"nomad.server", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
+		nomadTimeout = flag.String(
+			"nomad.timeout", "30", "HTTP timeout to contact Nomad agent.")
+		tlsCaFile = flag.String(
+			"tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
+		tlsCaPath = flag.String(
+			"tls.ca-path", "", "ca-path is the path to a directory of PEM-encoded CA cert files to verify the connection to nomad server")
+		tlsCert = flag.String(
+			"tls.cert-file", "", "cert-file is the path to the client certificate for Nomad communication")
+		tlsKey = flag.String(
+			"tls.key-file", "", "key-file is the path to the key for cert-file")
+		tlsInsecure = flag.Bool(
+			"tls.insecure", false, "insecure enables or disables SSL verification")
+		tlsServerName = flag.String(
+			"tls.tls-server-name", "", "tls-server-name sets the SNI for Nomad ssl connection")
 	)
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println(version.Print("nomad_exporter"))
+		fmt.Println(GetVersion())
 		os.Exit(0)
 	}
 
@@ -317,10 +328,10 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- nodeCount
 	ch <- nodeStatus
 	ch <- jobCount
-	ch <- allocationMemory
+	ch <- allocationMemotyBytes
 	ch <- allocationCPU
 	ch <- allocationCPUThrottled
-	ch <- allocationMemoryLimit
+	ch <- allocationMemotyBytesLimit
 	ch <- taskCPUPercent
 	ch <- taskCPUTotalTicks
 	ch <- taskMemoryRssBytes
@@ -458,11 +469,11 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 
 				nodeLabels := []string{node.ID, node.Name, node.Datacenter}
 				ch <- prometheus.MustNewConstMetric(
-					nodeResourceMemory, prometheus.GaugeValue, float64(*node.Resources.MemoryMB),
+					nodeResourceMemory, prometheus.GaugeValue, float64(*node.Resources.MemoryMB)*1024*1024,
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					nodeAllocatedMemory, prometheus.GaugeValue, float64(allocatedMemory),
+					nodeAllocatedMemory, prometheus.GaugeValue, float64(allocatedMemory)*1024*1024,
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
@@ -599,10 +610,10 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemory, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
+				allocationMemotyBytes, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemoryLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB), allocationLabels...,
+				allocationMemotyBytesLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
 			)
 
 			for taskName, taskStats := range stats.Tasks {
@@ -698,4 +709,18 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 	deploymentTaskGroupUnhealthyAllocs.Collect(ch)
 
 	return nil
+}
+
+// Version is the version, duh
+var Version string
+
+// Date is the build date
+var Date string
+
+// Commit is the commit that was built
+var Commit string
+
+// GetVersion returns the binary version
+func GetVersion() string {
+	return fmt.Sprintf("nomad-exporter Version: %s Commit: %s Date: %s", Version, Commit, Date)
 }
