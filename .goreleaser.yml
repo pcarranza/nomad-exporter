@@ -37,11 +37,11 @@ changelog:
       - Fix
       - Merge
       - WIP
-# dockers:
-#   - image: pcarranza/nomad-exporter
-#     goos: linux
-#     goarch: amd64
-#     goarm: ''
-#     binary: meeseeks-box
-#     dockerfile: Dockerfile.amd64
-#     latest: true
+dockers:
+  - image: pcarranza/nomad-exporter
+    goos: linux
+    goarch: amd64
+    goarm: ''
+    binary: nomad-exporter
+    dockerfile: Dockerfile
+    latest: true

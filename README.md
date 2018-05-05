@@ -3,7 +3,7 @@
 ## Docker
 
 ```
-  nomon/nomad-exporter:latest
+  pcarranza/nomad-exporter:latest
 ```
 
 ## Exported Metrics
