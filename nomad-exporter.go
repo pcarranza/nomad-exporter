@@ -26,18 +26,18 @@ const (
 var (
 	up = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "up"),
-		"Was the last query of Nomad successful.",
+		"Wether the exporter is able to talk to the nomad server.",
 		nil, nil,
 	)
 	clientErrors = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Namespace: namespace,
 			Name:      "client_errors_total",
-			Help:      "Number of errors that were accounted for",
+			Help:      "Number of errors that were accounted for.",
 		})
 	clusterLeader = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "leader"),
-		"wether the current host is the cluster leader",
+		"Wether the current host is the cluster leader.",
 		nil, nil)
 	clusterServers = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "raft_peers"),
@@ -51,7 +51,7 @@ var (
 	)
 	serfLanMembersStatus = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_member_status"),
-		"Describe member state",
+		"Describe member state.",
 		[]string{"datacenter", "class", "node", "drain"}, nil,
 	)
 	jobsTotal = prometheus.NewDesc(
@@ -66,70 +66,70 @@ var (
 	)
 	allocationMemotyBytesLimit = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
-		"Allocation memory limit",
+		"Allocation memory limit.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_percent"),
-		"Allocation CPU usage",
+		"Allocation CPU usage.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUThrottled = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_throttle_time"),
-		"Allocation throttled CPU",
+		"Allocation throttled CPU.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	taskCPUTotalTicks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_cpu_total_ticks"),
-		"Task CPU total ticks",
+		"Task CPU total ticks.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
 	)
 	taskCPUPercent = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_cpu_percent"),
-		"Task CPU usage, percent",
+		"Task CPU usage percent.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
 	)
 	taskMemoryRssBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_memory_rss_bytes"),
-		"Task memory RSS usage, bytes",
+		"Task memory RSS usage in bytes.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
 	)
 
 	nodeResourceMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_resource_memory_bytes"),
 		"Amount of allocatable memory the node has in bytes",
-		[]string{"node_id", "node_name", "datacenter"}, nil,
+		[]string{"node_id", "node", "datacenter"}, nil,
 	)
 	nodeAllocatedMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_allocated_memory_bytes"),
-		"Amount of memory allocated to tasks on the node in bytes",
-		[]string{"node_id", "node_name", "datacenter"}, nil,
+		"Amount of memory allocated to tasks on the node in bytes.",
+		[]string{"node_id", "node", "datacenter"}, nil,
 	)
 	nodeUsedMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_used_memory_bytes"),
-		"Amount of memory used on the node in MB",
-		[]string{"node_id", "node_name", "datacenter"}, nil,
+		"Amount of memory used on the node in bytes.",
+		[]string{"node_id", "node", "datacenter"}, nil,
 	)
 	nodeResourceCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_resource_cpu_megahertz"),
 		"Amount of allocatable CPU the node has in MHz",
-		[]string{"node_id", "node_name", "datacenter"}, nil,
+		[]string{"node_id", "node", "datacenter"}, nil,
 	)
 	nodeAllocatedCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_allocated_cpu_megahertz"),
-		"Amount of allocated CPU on the node in MHz",
-		[]string{"node_id", "node_name", "datacenter"}, nil,
+		"Amount of allocated CPU on the node in MHz.",
+		[]string{"node_id", "node", "datacenter"}, nil,
 	)
 	nodeUsedCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_used_cpu_megahertz"),
-		"Amount of CPU used on the node in MHz",
-		[]string{"node_id", "node_name", "datacenter"}, nil,
+		"Amount of CPU used on the node in MHz.",
+		[]string{"node_id", "node", "datacenter"}, nil,
 	)
 
 	allocation = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "allocation",
-		Help:      "allocation labeled with runtime information",
+		Help:      "Allocation labeled with runtime information.",
 	},
 		[]string{
 			"status",
@@ -138,34 +138,34 @@ var (
 			"job_id",
 			"task_group",
 			"node_id",
-			"node_name",
+			"node",
 		},
 	)
 	evalCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "evals_total",
-		Help:      "the number of evaluations",
+		Help:      "The number of evaluations.",
 	},
 		[]string{"status"},
 	)
 	taskCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "tasks_total",
-		Help:      "the number of tasks",
+		Help:      "The number of tasks.",
 	},
 		[]string{
 			"state",
 			"failed",
 			"job_type",
 			"node_id",
-			"node_name",
+			"node",
 		},
 	)
 
 	deploymentCount = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "deployments_total",
-		Help:      "the number of deployments",
+		Help:      "The number of deployments.",
 	},
 		[]string{
 			"status",
@@ -176,7 +176,7 @@ var (
 	deploymentTaskGroupDesiredCanaries = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "deployment_task_group_desired_canaries_total",
-		Help:      "the number of desired canaries for the task group",
+		Help:      "The number of desired canaries for the task group.",
 	},
 		[]string{
 			"job_id",
@@ -190,7 +190,7 @@ var (
 	deploymentTaskGroupDesiredTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "deployment_task_group_desired_total",
-		Help:      "the number of desired allocs for the task group",
+		Help:      "The number of desired allocs for the task group.",
 	},
 		[]string{
 			"job_id",
@@ -204,7 +204,7 @@ var (
 	deploymentTaskGroupPlacedAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "deployment_task_group_placed_allocs_total",
-		Help:      "the number of placed allocs for the task group",
+		Help:      "The number of placed allocs for the task group.",
 	},
 		[]string{
 			"job_id",
@@ -218,7 +218,7 @@ var (
 	deploymentTaskGroupHealthyAllocs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "deployment_task_group_healthy_allocs_total",
-		Help:      "the number of healthy allocs for the task group",
+		Help:      "The number of healthy allocs for the task group.",
 	},
 		[]string{
 			"job_id",
@@ -388,6 +388,11 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
+	if err := e.collectNodes(ch); err != nil {
+		logError(err)
+		return
+	}
+
 	if err := e.collectJobsMetrics(ch); err != nil {
 		logError(err)
 		return
@@ -513,7 +518,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used),
+					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used)*1024*1024,
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
@@ -605,18 +610,18 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				"job_id":         alloc.JobID,
 				"task_group":     alloc.TaskGroup,
 				"node_id":        node.ID,
-				"node_name":      node.Name,
+				"node":           node.Name,
 			}).Add(1)
 
 			taskStates := alloc.TaskStates
 
 			for _, task := range taskStates {
 				taskCount.With(prometheus.Labels{
-					"state":     task.State,
-					"failed":    strconv.FormatBool(task.Failed),
-					"job_type":  *job.Type,
-					"node_id":   node.ID,
-					"node_name": node.Name,
+					"state":    task.State,
+					"failed":   strconv.FormatBool(task.Failed),
+					"job_type": *job.Type,
+					"node_id":  node.ID,
+					"node":     node.Name,
 				}).Add(1)
 			}
 
