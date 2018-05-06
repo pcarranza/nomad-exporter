@@ -255,7 +255,7 @@ func main() {
 		nomadServer = flag.String(
 			"nomad.server", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
 		nomadTimeout = flag.Int(
-			"nomad.timeout", 30, "HTTP timeout to contact Nomad agent.")
+			"nomad.timeout", 10, "HTTP timeout to contact Nomad agent, or read from it.")
 		tlsCaFile = flag.String(
 			"tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
 		tlsCaPath = flag.String(
@@ -285,7 +285,9 @@ func main() {
 
 	cfg := api.DefaultConfig()
 	cfg.Address = *nomadServer
-	cfg.SetTimeout(time.Duration(*nomadTimeout) * time.Second)
+	if err := cfg.SetTimeout(time.Duration(*nomadTimeout) * time.Second); err != nil {
+		logrus.Fatalf("failed to set timeout: %s", err)
+	}
 
 	if strings.HasPrefix(cfg.Address, "https://") {
 		cfg.TLSConfig.CACert = *tlsCaFile
@@ -452,6 +454,7 @@ func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
 	if err != nil {
 		return fmt.Errorf("could not get jobs: %s", err)
 	}
+	logrus.Debugf("collected job metrics %d", len(jobs))
 	ch <- prometheus.MustNewConstMetric(
 		jobsTotal, prometheus.GaugeValue, float64(len(jobs)),
 	)
@@ -459,6 +462,9 @@ func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
 }
 
 func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
+	opts := &api.QueryOptions{
+		WaitTime: 1 * time.Second,
+	}
 	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get nodes list: %s", err)
@@ -466,11 +472,15 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 	ch <- prometheus.MustNewConstMetric(
 		serfLanMembers, prometheus.GaugeValue, float64(len(nodes)),
 	)
+	logrus.Debugf("I've the nodes list with %d nodes", len(nodes))
 
 	var w sync.WaitGroup
 
 	for _, node := range nodes {
+		w.Add(1)
+
 		state := 1
+
 		drain := strconv.FormatBool(node.Drain)
 		if node.Status == "down" {
 			state = 0
@@ -480,25 +490,32 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			node.Datacenter, node.NodeClass, node.Name, drain,
 		)
 
-		w.Add(1)
-		go func(a *api.NodeListStub) {
-			defer w.Done()
+		pool := make(chan func(), 10) // Only run 10 at a time
+		go func() {
+			f := <-pool
+			f()
+		}()
 
-			node, _, err := e.client.Nodes().Info(a.ID, &api.QueryOptions{})
-			if err != nil {
-				logError(fmt.Errorf("failed to get node %s info: %s", node.Name, err))
-				return
-			}
+		pool <- func(a *api.NodeListStub) func() {
+			return func() {
+				defer w.Done()
 
-			runningAllocs, err := e.getRunningAllocs(node.ID)
-			if err != nil {
-				logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
-				return
-			}
-			if node.Status == "ready" {
-				nodeStats, err := e.client.Nodes().Stats(a.ID, &api.QueryOptions{})
+				logrus.Debugf("Fetching node %#v", a)
+				node, _, err := e.client.Nodes().Info(a.ID, opts)
 				if err != nil {
-					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
+					logError(fmt.Errorf("failed to get node %s info: %s", a.Name, err))
+					return
+				}
+
+				logrus.Debugf("Node %s fetched", node.Name)
+
+				runningAllocs, err := e.getRunningAllocs(node.ID)
+				if err != nil {
+					logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
+					return
+				}
+				if node.Status != "ready" {
+					logrus.Debugf("Ignoring node %s because it's not ready", node.Name)
 					return
 				}
 
@@ -518,27 +535,37 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used)*1024*1024,
+					nodeAllocatedCPU, prometheus.GaugeValue, float64(allocatedCPU),
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
 					nodeResourceCPU, prometheus.GaugeValue, float64(*node.Resources.CPU),
 					nodeLabels...,
 				)
+
+				nodeStats, err := e.client.Nodes().Stats(a.ID, opts)
+				if err != nil {
+					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
+					return
+				}
+				logrus.Debugf("Fetched node %s stats", node.Name)
+
 				ch <- prometheus.MustNewConstMetric(
-					nodeAllocatedCPU, prometheus.GaugeValue, float64(allocatedCPU),
+					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used)*1024*1024,
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
 					nodeUsedCPU, prometheus.GaugeValue, float64(math.Floor(nodeStats.CPUTicksConsumed)),
 					nodeLabels...,
 				)
+
 			}
 		}(node)
 	}
 
 	w.Wait()
 
+	logrus.Debugf("done waiting for node metrics")
 	return nil
 }
 
@@ -566,10 +593,6 @@ func (e *Exporter) collectPeerMetrics(ch chan<- prometheus.Metric) error {
 		clusterServers, prometheus.GaugeValue, float64(len(peers)),
 	)
 	return nil
-}
-
-func (e *Exporter) collectMetricsForSingleAlloc(w *sync.WaitGroup) {
-
 }
 
 func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
