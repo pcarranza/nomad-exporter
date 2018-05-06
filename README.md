@@ -8,6 +8,10 @@ Originally a fork of Nomon/nomad-exporter, now an extended version of it.
 docker run pcarranza/nomad-exporter:latest
 ```
 
+## Nomad version
+
+Currently supporting Nomad 0.8.3 API version
+
 ## Leader Detection
 
 The way to identify the leader is by comparing the leader address obtained
