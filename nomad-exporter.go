@@ -271,6 +271,9 @@ func main() {
 		debug = flag.Bool(
 			"debug", false, "enable debug log level",
 		)
+		allowStaleReads = flag.Bool(
+			"allow-stale-reads", false, "allow to read metrics from a non-leader server",
+		)
 	)
 	flag.Parse()
 
@@ -302,6 +305,7 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("Could not create exporter: %s", err)
 	}
+	exporter.SetAllowStaleReads(*allowStaleReads)
 	prometheus.MustRegister(exporter)
 
 	http.Handle(*metricsPath, prometheus.Handler())
@@ -321,7 +325,9 @@ func main() {
 
 // Exporter is a nomad exporter
 type Exporter struct {
-	client *api.Client
+	client          *api.Client
+	allowStaleReads bool
+	amILeader       bool
 }
 
 func newExporter(cfg *api.Config) (*Exporter, error) {
@@ -332,6 +338,15 @@ func newExporter(cfg *api.Config) (*Exporter, error) {
 	return &Exporter{
 		client: client,
 	}, nil
+}
+
+// SetAllowStaleReads if set to true we will poke for metrics to the node even when it's not a leader
+func (e *Exporter) SetAllowStaleReads(a bool) {
+	e.allowStaleReads = a
+}
+
+func (e *Exporter) shouldReadMetrics() bool {
+	return e.amILeader || e.allowStaleReads
 }
 
 // Describe implements Collector interface.
@@ -443,6 +458,8 @@ func (e *Exporter) collectLeader(ch chan<- prometheus.Metric) error {
 		isLeader = 1
 	}
 
+	e.amILeader = isLeader == 1
+
 	ch <- prometheus.MustNewConstMetric(
 		clusterLeader, prometheus.GaugeValue, isLeader,
 	)
@@ -450,6 +467,10 @@ func (e *Exporter) collectLeader(ch chan<- prometheus.Metric) error {
 }
 
 func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
+	if !e.shouldReadMetrics() {
+		return nil
+	}
+
 	jobs, _, err := e.client.Jobs().List(&api.QueryOptions{})
 	if err != nil {
 		return fmt.Errorf("could not get jobs: %s", err)
@@ -462,9 +483,11 @@ func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
 }
 
 func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
-	opts := &api.QueryOptions{
-		WaitTime: 1 * time.Second,
+	if !e.shouldReadMetrics() {
+		return nil
 	}
+
+	opts := &api.QueryOptions{}
 	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to get nodes list: %s", err)
@@ -585,6 +608,10 @@ func (e *Exporter) getRunningAllocs(nodeID string) ([]*api.Allocation, error) {
 }
 
 func (e *Exporter) collectPeerMetrics(ch chan<- prometheus.Metric) error {
+	if !e.shouldReadMetrics() {
+		return nil
+	}
+
 	peers, err := e.client.Status().Peers()
 	if err != nil {
 		return fmt.Errorf("failed to get peer metrics: %s", err)
@@ -598,6 +625,10 @@ func (e *Exporter) collectPeerMetrics(ch chan<- prometheus.Metric) error {
 func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 	allocation.Reset()
 	taskCount.Reset()
+
+	if !e.shouldReadMetrics() {
+		return nil
+	}
 
 	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{})
 	if err != nil {
@@ -706,6 +737,10 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 func (e *Exporter) collectEvalMetrics(ch chan<- prometheus.Metric) error {
 	evalCount.Reset()
 
+	if !e.shouldReadMetrics() {
+		return nil
+	}
+
 	evals, _, err := e.client.Evaluations().List(&api.QueryOptions{})
 	if err != nil {
 		return fmt.Errorf("could not get evaluation metrics: %s", err)
@@ -729,6 +764,10 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 	deploymentTaskGroupPlacedAllocs.Reset()
 	deploymentTaskGroupHealthyAllocs.Reset()
 	deploymentTaskGroupUnhealthyAllocs.Reset()
+
+	if !e.shouldReadMetrics() {
+		return nil
+	}
 
 	deployments, _, err := e.client.Deployments().List(&api.QueryOptions{})
 	if err != nil {
