@@ -44,6 +44,12 @@ var (
 		"How many peers (servers) are in the Raft cluster.",
 		nil, nil,
 	)
+	nodeInfo = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "node_info"),
+		"Node information",
+		[]string{"name", "version", "class", "status", "drain", "datacenter", "scheduling_eligibility"},
+		nil,
+	)
 	serfLanMembers = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_members"),
 		"How many members are in the cluster.",
@@ -59,12 +65,12 @@ var (
 		"How many jobs are there in the cluster.",
 		nil, nil,
 	)
-	allocationMemotyBytes = prometheus.NewDesc(
+	allocationMemoryBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes"),
 		"Allocation memory usage",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
-	allocationMemotyBytesLimit = prometheus.NewDesc(
+	allocationMemoryBytesLimit = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
 		"Allocation memory limit.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
@@ -98,32 +104,42 @@ var (
 	nodeResourceMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_resource_memory_bytes"),
 		"Amount of allocatable memory the node has in bytes",
-		[]string{"node_id", "node", "datacenter"}, nil,
+		[]string{"node", "datacenter"}, nil,
 	)
 	nodeAllocatedMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_allocated_memory_bytes"),
 		"Amount of memory allocated to tasks on the node in bytes.",
-		[]string{"node_id", "node", "datacenter"}, nil,
+		[]string{"node", "datacenter"}, nil,
 	)
 	nodeUsedMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_used_memory_bytes"),
 		"Amount of memory used on the node in bytes.",
-		[]string{"node_id", "node", "datacenter"}, nil,
+		[]string{"node", "datacenter"}, nil,
 	)
 	nodeResourceCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_resource_cpu_megahertz"),
 		"Amount of allocatable CPU the node has in MHz",
-		[]string{"node_id", "node", "datacenter"}, nil,
+		[]string{"node", "datacenter"}, nil,
+	)
+	nodeResourceIOPS = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "node_resource_iops"),
+		"Amount of allocatable IOPS the node has.",
+		[]string{"node", "datacenter"}, nil,
+	)
+	nodeResourceDiskBytes = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "node_resource_disk_bytes"),
+		"Amount of allocatable disk bytes the node has.",
+		[]string{"node", "datacenter"}, nil,
 	)
 	nodeAllocatedCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_allocated_cpu_megahertz"),
 		"Amount of allocated CPU on the node in MHz.",
-		[]string{"node_id", "node", "datacenter"}, nil,
+		[]string{"node", "datacenter"}, nil,
 	)
 	nodeUsedCPU = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_used_cpu_megahertz"),
 		"Amount of CPU used on the node in MHz.",
-		[]string{"node_id", "node", "datacenter"}, nil,
+		[]string{"node", "datacenter"}, nil,
 	)
 
 	allocation = prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -137,7 +153,6 @@ var (
 			"job_type",
 			"job_id",
 			"task_group",
-			"node_id",
 			"node",
 		},
 	)
@@ -157,7 +172,6 @@ var (
 			"state",
 			"failed",
 			"job_type",
-			"node_id",
 			"node",
 		},
 	)
@@ -352,14 +366,15 @@ func (e *Exporter) shouldReadMetrics() bool {
 // Describe implements Collector interface.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
+	ch <- nodeInfo
 	ch <- clusterServers
 	ch <- serfLanMembers
 	ch <- serfLanMembersStatus
 	ch <- jobsTotal
-	ch <- allocationMemotyBytes
+	ch <- allocationMemoryBytes
 	ch <- allocationCPU
 	ch <- allocationCPUThrottled
-	ch <- allocationMemotyBytesLimit
+	ch <- allocationMemoryBytesLimit
 	ch <- taskCPUPercent
 	ch <- taskCPUTotalTicks
 	ch <- taskMemoryRssBytes
@@ -367,6 +382,8 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- nodeAllocatedMemory
 	ch <- nodeUsedMemory
 	ch <- nodeResourceCPU
+	ch <- nodeResourceIOPS
+	ch <- nodeResourceDiskBytes
 	ch <- nodeAllocatedCPU
 	ch <- nodeUsedCPU
 
@@ -488,7 +505,8 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 	}
 
 	opts := &api.QueryOptions{}
-	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{})
+
+	nodes, _, err := e.client.Nodes().List(opts)
 	if err != nil {
 		return fmt.Errorf("failed to get nodes list: %s", err)
 	}
@@ -503,8 +521,14 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 		w.Add(1)
 
 		state := 1
-
 		drain := strconv.FormatBool(node.Drain)
+
+		ch <- prometheus.MustNewConstMetric(
+			nodeInfo, prometheus.GaugeValue, 1,
+			node.Name, node.Version, node.NodeClass, node.Status,
+			drain, node.Datacenter, node.SchedulingEligibility,
+		)
+
 		if node.Status == "down" {
 			state = 0
 		}
@@ -548,7 +572,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					allocatedMemory += *alloc.Resources.MemoryMB
 				}
 
-				nodeLabels := []string{node.ID, node.Name, node.Datacenter}
+				nodeLabels := []string{node.Name, node.Datacenter}
 				ch <- prometheus.MustNewConstMetric(
 					nodeResourceMemory, prometheus.GaugeValue, float64(*node.Resources.MemoryMB)*1024*1024,
 					nodeLabels...,
@@ -563,6 +587,14 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 				)
 				ch <- prometheus.MustNewConstMetric(
 					nodeResourceCPU, prometheus.GaugeValue, float64(*node.Resources.CPU),
+					nodeLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeResourceIOPS, prometheus.GaugeValue, float64(*node.Resources.IOPS),
+					nodeLabels...,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeResourceDiskBytes, prometheus.GaugeValue, float64(*node.Resources.DiskMB)*1024*1024,
 					nodeLabels...,
 				)
 
@@ -581,7 +613,6 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					nodeUsedCPU, prometheus.GaugeValue, float64(math.Floor(nodeStats.CPUTicksConsumed)),
 					nodeLabels...,
 				)
-
 			}
 		}(node)
 	}
@@ -663,7 +694,6 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				"job_type":       *job.Type,
 				"job_id":         alloc.JobID,
 				"task_group":     alloc.TaskGroup,
-				"node_id":        node.ID,
 				"node":           node.Name,
 			}).Add(1)
 
@@ -674,7 +704,6 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 					"state":    task.State,
 					"failed":   strconv.FormatBool(task.Failed),
 					"job_type": *job.Type,
-					"node_id":  node.ID,
 					"node":     node.Name,
 				}).Add(1)
 			}
@@ -705,10 +734,10 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemotyBytes, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
+				allocationMemoryBytes, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemotyBytesLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
+				allocationMemoryBytesLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
 			)
 
 			for taskName, taskStats := range stats.Tasks {
