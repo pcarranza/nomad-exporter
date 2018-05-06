@@ -8,6 +8,27 @@ Originally a fork of Nomon/nomad-exporter, now an extended version of it.
 docker run pcarranza/nomad-exporter:latest
 ```
 
+## Leader Detection
+
+The way to identify the leader is by comparing the leader address obtained
+through the API call with the client address, if they both aim for the same
+hostname, then the reading exporter is considered to be reading from the
+leader host.
+
+If you are having problems identifying the leader, use `-debug` to read what
+data the current exporter is handling.
+
+## Allow Reading Stale Metrics
+
+By default  exporter will try to identify the leader of the cluster and
+only get metrics from it.
+
+This is a defense mechanism to prevent impacting the whole cluster by
+requesting every node with metrics from everybody else.
+
+Still, there's a `-allow-stale-reads` argument that can be used to enable
+recording metrics from any hosts regardless of it being the leader or not.
+
 ## Exported Metrics
 
 | Metric | Meaning | Labels |
@@ -44,9 +65,10 @@ docker run pcarranza/nomad-exporter:latest
 
 ## Usage
 
+* -allow-stale-reads: allow to read metrics from a non-leader server
 * -debug: enable debug log level
 * -nomad.server string: HTTP API address of a Nomad server or agent. (default "http://localhost:4646")
-* -nomad.timeout int: HTTP timeout to contact Nomad agent. (default 30)
+* -nomad.timeout int: HTTP timeout to contact Nomad agent, or read from it. (default 10)
 * -tls.ca-file string: ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server
 * -tls.ca-path string: ca-path is the path to a directory of PEM-encoded CA cert files to verify the connection to nomad server
 * -tls.cert-file string: cert-file is the path to the client certificate for Nomad communication
