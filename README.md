@@ -38,7 +38,7 @@ recording metrics from any hosts regardless of it being the leader or not.
 | Metric | Meaning | Labels |
 | ------ | ------- | ------ |
 |nomad_up | Wether the exporter is able to talk to the nomad server. | |
-|nomad_client_errors_total | Number of errors that were accounted for. | |
+|nomad_client_api_errors_total | Number of errors that this exporter had when querying the API. | |
 |nomad_leader | Wether the current host is the cluster leader. | |
 |nomad_jobs_total | How many jobs are there in the cluster. | |
 |nomad_node_info | Node information. | name, version, class, status, drain, datacenter, scheduling_eligibility |
