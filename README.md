@@ -55,7 +55,7 @@ recording metrics from any hosts regardless of it being the leader or not.
 |nomad_deployment_task_group_placed_allocs_total | The number of placed allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
 |nomad_deployment_task_group_unhealthy_allocs_total | The number of unhealthy allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
 |nomad_allocation_memory_rss_bytes | Allocation memory usage. | job, group, alloc, region, datacenter, node |
-|nomad_allocation_memory_rss_bytes_limit | Allocation memory limit. | job, group, alloc, region, datacenter, node |
+|nomad_allocation_memory_rss_limit_bytes | Allocation memory limit. | job, group, alloc, region, datacenter, node |
 |nomad_allocation_cpu_percent | Allocation CPU usage. | job, group, alloc, region, datacenter, node |
 |nomad_allocation_cpu_throttle_time | Allocation throttled CPU. | job, group, alloc, region, datacenter, node |
 |nomad_task_cpu_total_ticks | Task CPU total ticks. | job, group, alloc, region, datacenter, node, task |

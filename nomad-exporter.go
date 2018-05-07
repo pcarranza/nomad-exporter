@@ -73,7 +73,7 @@ var (
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationMemoryBytesLimit = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
+		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_limit_bytes"),
 		"Allocation memory limit.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
