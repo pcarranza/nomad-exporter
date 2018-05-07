@@ -58,12 +58,12 @@ var (
 		nil, nil,
 	)
 	serfLanMembersStatus = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "serf_lan_member_status"),
+		prometheus.BuildFQName(namespace, "", "serf_lan_member_status_info"),
 		"Describe member state.",
 		[]string{"datacenter", "class", "node", "drain"}, nil,
 	)
 	jobsTotal = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "jobs_total"),
+		prometheus.BuildFQName(namespace, "", "jobs"),
 		"How many jobs are there in the cluster.",
 		nil, nil,
 	)
@@ -158,7 +158,7 @@ var (
 	)
 
 	taskCount = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "tasks_total"),
+		prometheus.BuildFQName(namespace, "", "tasks"),
 		"The number of tasks.",
 		[]string{
 			"state",
@@ -169,13 +169,13 @@ var (
 	)
 
 	evalCount = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "evals_total"),
+		prometheus.BuildFQName(namespace, "", "evals"),
 		"The number of evaluations.",
 		[]string{"status"}, nil,
 	)
 
 	deploymentCount = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "deployments_total"),
+		prometheus.BuildFQName(namespace, "", "deployments"),
 		"The number of deployments.",
 		[]string{
 			"status",
@@ -184,7 +184,7 @@ var (
 	)
 
 	deploymentTaskGroupDesiredCanaries = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "deployment_task_group_desired_canaries_total"),
+		prometheus.BuildFQName(namespace, "", "deployment_task_group_desired_canaries"),
 		"The number of desired canaries for the task group.",
 		[]string{
 			"job_id",
@@ -196,7 +196,7 @@ var (
 	)
 
 	deploymentTaskGroupDesiredTotal = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "deployment_task_group_desired_total"),
+		prometheus.BuildFQName(namespace, "", "deployment_task_group_desired"),
 		"The number of desired allocs for the task group.",
 		[]string{
 			"job_id",
@@ -208,7 +208,7 @@ var (
 	)
 
 	deploymentTaskGroupPlacedAllocs = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "deployment_task_group_placed_allocs_total"),
+		prometheus.BuildFQName(namespace, "", "deployment_task_group_placed_allocs"),
 		"The number of placed allocs for the task group.",
 		[]string{
 			"job_id",
@@ -220,7 +220,7 @@ var (
 	)
 
 	deploymentTaskGroupHealthyAllocs = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "deployment_task_group_healthy_allocs_total"),
+		prometheus.BuildFQName(namespace, "", "deployment_task_group_healthy_allocs"),
 		"The number of healthy allocs for the task group.",
 		[]string{
 			"job_id",
@@ -232,7 +232,7 @@ var (
 	)
 
 	deploymentTaskGroupUnhealthyAllocs = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "deployment_task_group_unhealthy_allocs_total"),
+		prometheus.BuildFQName(namespace, "", "deployment_task_group_unhealthy_allocs"),
 		"the number of unhealthy allocs for the task group",
 		[]string{
 			"job_id",
@@ -507,6 +507,9 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 		w.Add(1)
 
 		state := 1
+		if node.Status == "down" {
+			state = 0
+		}
 		drain := strconv.FormatBool(node.Drain)
 
 		ch <- prometheus.MustNewConstMetric(
@@ -514,10 +517,6 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			node.Name, node.Version, node.NodeClass, node.Status,
 			drain, node.Datacenter, node.SchedulingEligibility,
 		)
-
-		if node.Status == "down" {
-			state = 0
-		}
 		ch <- prometheus.MustNewConstMetric(
 			serfLanMembersStatus, prometheus.GaugeValue, float64(state),
 			node.Datacenter, node.NodeClass, node.Name, drain,
