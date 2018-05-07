@@ -38,24 +38,24 @@ recording metrics from any hosts regardless of it being the leader or not.
 | Metric | Meaning | Labels |
 | ------ | ------- | ------ |
 |nomad_up | Wether the exporter is able to talk to the nomad server. | |
-|nomad_client_errors_total | Number of errors that were accounted for. | |
+|nomad_client_api_errors_total | Number of errors that this exporter had when querying the API. | |
 |nomad_leader | Wether the current host is the cluster leader. | |
-|nomad_jobs_total | How many jobs are there in the cluster. | |
+|nomad_jobs | How many jobs are there in the cluster. | |
 |nomad_node_info | Node information. | name, version, class, status, drain, datacenter, scheduling_eligibility |
 |nomad_raft_peers | How many peers (servers) are in the Raft cluster. | |
 |nomad_serf_lan_members | How many members are in the cluster. | |
-|nomad_serf_lan_member_status | Describe member state. | datacenter, class, node, drain |
+|serf_lan_member_status_info | Describes member state. | datacenter, class, node, drain |
 |nomad_allocation | Allocation labeled with runtime information. | status, desired_status, job_type, job_id, task_group, node |
-|nomad_evals_total | The number of evaluations. | status |
-|nomad_tasks_total | The number of tasks. | state, failed, job_type, node |
-|nomad_deployments_total | The number of deployments. | status, job_id |
-|nomad_deployment_task_group_desired_canaries_total | The number of desired canaries for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
-|nomad_deployment_task_group_desired_total | The number of desired allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
-|nomad_deployment_task_group_healthy_allocs_total | The number of healthy allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
-|nomad_deployment_task_group_placed_allocs_total | The number of placed allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
-|nomad_deployment_task_group_unhealthy_allocs_total | The number of unhealthy allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
+|nomad_evals | The number of evaluations. | status |
+|nomad_tasks | The number of tasks. | state, failed, job_type, node |
+|nomad_deployments | The number of deployments. | status, job_id |
+|nomad_deployment_task_group_desired_canaries | The number of desired canaries for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
+|nomad_deployment_task_group_desired | The number of desired allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
+|nomad_deployment_task_group_healthy_allocs | The number of healthy allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
+|nomad_deployment_task_group_placed_allocs | The number of placed allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
+|nomad_deployment_task_group_unhealthy_allocs | The number of unhealthy allocs for the task group. | job_id, deployment_id, task_group, promoted, auto_revert |
 |nomad_allocation_memory_rss_bytes | Allocation memory usage. | job, group, alloc, region, datacenter, node |
-|nomad_allocation_memory_rss_bytes_limit | Allocation memory limit. | job, group, alloc, region, datacenter, node |
+|nomad_allocation_memory_rss_limit_bytes | Allocation memory limit. | job, group, alloc, region, datacenter, node |
 |nomad_allocation_cpu_percent | Allocation CPU usage. | job, group, alloc, region, datacenter, node |
 |nomad_allocation_cpu_throttle_time | Allocation throttled CPU. | job, group, alloc, region, datacenter, node |
 |nomad_task_cpu_total_ticks | Task CPU total ticks. | job, group, alloc, region, datacenter, node, task |
