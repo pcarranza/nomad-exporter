@@ -510,7 +510,9 @@ func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	jobs, _, err := e.client.Jobs().List(&api.QueryOptions{})
+	jobs, _, err := e.client.Jobs().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return fmt.Errorf("could not get jobs: %s", err)
 	}
@@ -526,7 +528,9 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	opts := &api.QueryOptions{}
+	opts := &api.QueryOptions{
+		AllowStale: true,
+	}
 
 	nodes, _, err := e.client.Nodes().List(opts)
 	if err != nil {
@@ -683,7 +687,9 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{})
+	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return fmt.Errorf("could not get allocations: %s", err)
 	}
@@ -696,13 +702,17 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 		go func(allocStub *api.AllocationListStub) {
 			defer w.Done()
 
-			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{})
+			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
+				AllowStale: true,
+			})
 			if err != nil {
 				logError(err)
 				return
 			}
 
-			node, _, err := e.client.Nodes().Info(alloc.NodeID, &api.QueryOptions{})
+			node, _, err := e.client.Nodes().Info(alloc.NodeID, &api.QueryOptions{
+				AllowStale: true,
+			})
 			if err != nil {
 				logError(err)
 				return
@@ -735,7 +745,9 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 			// 	return
 			// }
 
-			// stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{})
+			// stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{
+			// 	AllowStale: true,
+			// })
 			// if err != nil {
 			// 	logError(err)
 			// 	return
@@ -792,7 +804,9 @@ func (e *Exporter) collectEvalMetrics(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	evals, _, err := e.client.Evaluations().List(&api.QueryOptions{})
+	evals, _, err := e.client.Evaluations().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return fmt.Errorf("could not get evaluation metrics: %s", err)
 	}
@@ -820,7 +834,9 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	deployments, _, err := e.client.Deployments().List(&api.QueryOptions{})
+	deployments, _, err := e.client.Deployments().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return err
 	}
