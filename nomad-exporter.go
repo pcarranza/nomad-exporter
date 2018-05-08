@@ -288,6 +288,12 @@ func main() {
 		allowStaleReads = flag.Bool(
 			"allow-stale-reads", false, "allow to read metrics from a non-leader server",
 		)
+		noPeerMetricsEnabled        = flag.Bool("no-peer-metrics", false, "disable peer metrics collection")
+		noNodeMetricsEnabled        = flag.Bool("no-node-metrics", false, "disable node metrics collection")
+		noJobMetricsEnabled         = flag.Bool("no-jobs-metrics", false, "disable jobs metrics collection")
+		noAllocationsMetricsEnabled = flag.Bool("no-allocations-metrics", false, "disable allocations metrics collection")
+		noEvalMetricsEnabled        = flag.Bool("no-eval-metrics", false, "disable eval metrics collection")
+		noDeploymentMetricsEnabled  = flag.Bool("no-deployment-metrics", false, "disable deployment metrics collection")
 	)
 	flag.Parse()
 
@@ -315,11 +321,24 @@ func main() {
 		cfg.TLSConfig.TLSServerName = *tlsServerName
 	}
 
-	exporter, err := newExporter(cfg)
+	apiClient, err := api.NewClient(cfg)
 	if err != nil {
-		logrus.Fatalf("Could not create exporter: %s", err)
+		logrus.Fatalf("could not create exporter: %s", err)
 	}
-	exporter.SetAllowStaleReads(*allowStaleReads)
+
+	exporter := &Exporter{
+		client:                    apiClient,
+		AllowStaleReads:           *allowStaleReads,
+		PeerMetricsEnabled:        !*noPeerMetricsEnabled,
+		NodeMetricsEnabled:        !*noNodeMetricsEnabled,
+		JobMetricEnabled:          !*noJobMetricsEnabled,
+		AllocationsMetricsEnabled: !*noAllocationsMetricsEnabled,
+		EvalMetricsEnabled:        !*noEvalMetricsEnabled,
+		DeploymentMetricsEnabled:  !*noDeploymentMetricsEnabled,
+	}
+
+	logrus.Debugf("Created exporter %#v", *exporter)
+
 	prometheus.MustRegister(exporter)
 
 	http.Handle(*metricsPath, prometheus.Handler())
@@ -339,28 +358,19 @@ func main() {
 
 // Exporter is a nomad exporter
 type Exporter struct {
-	client          *api.Client
-	allowStaleReads bool
-	amILeader       bool
-}
-
-func newExporter(cfg *api.Config) (*Exporter, error) {
-	client, err := api.NewClient(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("could not create exporter: %s", err)
-	}
-	return &Exporter{
-		client: client,
-	}, nil
-}
-
-// SetAllowStaleReads if set to true we will poke for metrics to the node even when it's not a leader
-func (e *Exporter) SetAllowStaleReads(a bool) {
-	e.allowStaleReads = a
+	client                    *api.Client
+	AllowStaleReads           bool
+	amILeader                 bool
+	PeerMetricsEnabled        bool
+	NodeMetricsEnabled        bool
+	JobMetricEnabled          bool
+	AllocationsMetricsEnabled bool
+	EvalMetricsEnabled        bool
+	DeploymentMetricsEnabled  bool
 }
 
 func (e *Exporter) shouldReadMetrics() bool {
-	return e.amILeader || e.allowStaleReads
+	return e.amILeader || e.AllowStaleReads
 }
 
 // Describe implements Collector interface.
@@ -417,34 +427,46 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- clientErrors
 
-	if err := e.collectPeerMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.PeerMetricsEnabled {
+		if err := e.collectPeerMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectNodes(ch); err != nil {
-		logError(err)
-		return
+	if e.NodeMetricsEnabled {
+		if err := e.collectNodes(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectJobsMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.JobMetricEnabled {
+		if err := e.collectJobsMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectAllocations(ch); err != nil {
-		logError(err)
-		return
+	if e.AllocationsMetricsEnabled {
+		if err := e.collectAllocations(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectEvalMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.EvalMetricsEnabled {
+		if err := e.collectEvalMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectDeploymentMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.DeploymentMetricsEnabled {
+		if err := e.collectDeploymentMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 }
 
