@@ -65,41 +65,41 @@ var (
 		"How many jobs are there in the cluster.",
 		nil, nil,
 	)
-	allocationMemoryBytes = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes"),
-		"Allocation memory usage",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
-	)
-	allocationMemoryBytesLimit = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
-		"Allocation memory limit.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
-	)
-	allocationCPU = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocation_cpu_percent"),
-		"Allocation CPU usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
-	)
-	allocationCPUThrottled = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocation_cpu_throttle_time"),
-		"Allocation throttled CPU.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
-	)
-	taskCPUTotalTicks = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "task_cpu_total_ticks"),
-		"Task CPU total ticks.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
-	)
-	taskCPUPercent = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "task_cpu_percent"),
-		"Task CPU usage percent.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
-	)
-	taskMemoryRssBytes = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "task_memory_rss_bytes"),
-		"Task memory RSS usage in bytes.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
-	)
+	// allocationMemoryBytes = prometheus.NewDesc(
+	// 	prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes"),
+	// 	"Allocation memory usage",
+	// 	[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	// )
+	// allocationMemoryBytesLimit = prometheus.NewDesc(
+	// 	prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
+	// 	"Allocation memory limit.",
+	// 	[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	// )
+	// allocationCPU = prometheus.NewDesc(
+	// 	prometheus.BuildFQName(namespace, "", "allocation_cpu_percent"),
+	// 	"Allocation CPU usage.",
+	// 	[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	// )
+	// allocationCPUThrottled = prometheus.NewDesc(
+	// 	prometheus.BuildFQName(namespace, "", "allocation_cpu_throttle_time"),
+	// 	"Allocation throttled CPU.",
+	// 	[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	// )
+	// taskCPUTotalTicks = prometheus.NewDesc(
+	// 	prometheus.BuildFQName(namespace, "", "task_cpu_total_ticks"),
+	// 	"Task CPU total ticks.",
+	// 	[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
+	// )
+	// taskCPUPercent = prometheus.NewDesc(
+	// 	prometheus.BuildFQName(namespace, "", "task_cpu_percent"),
+	// 	"Task CPU usage percent.",
+	// 	[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
+	// )
+	// taskMemoryRssBytes = prometheus.NewDesc(
+	// 	prometheus.BuildFQName(namespace, "", "task_memory_rss_bytes"),
+	// 	"Task memory RSS usage in bytes.",
+	// 	[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
+	// )
 
 	nodeResourceMemory = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_resource_memory_bytes"),
@@ -371,13 +371,13 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serfLanMembers
 	ch <- serfLanMembersStatus
 	ch <- jobsTotal
-	ch <- allocationMemoryBytes
-	ch <- allocationCPU
-	ch <- allocationCPUThrottled
-	ch <- allocationMemoryBytesLimit
-	ch <- taskCPUPercent
-	ch <- taskCPUTotalTicks
-	ch <- taskMemoryRssBytes
+	// ch <- allocationMemoryBytes
+	// ch <- allocationCPU
+	// ch <- allocationCPUThrottled
+	// ch <- allocationMemoryBytesLimit
+	// ch <- taskCPUPercent
+	// ch <- taskCPUTotalTicks
+	// ch <- taskMemoryRssBytes
 	ch <- nodeResourceMemory
 	ch <- nodeAllocatedMemory
 	ch <- nodeUsedMemory
@@ -708,50 +708,50 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				}).Add(1)
 			}
 
-			// Return unless the allocation is running
-			if allocStub.ClientStatus != "running" {
-				return
-			}
+			// // Return unless the allocation is running
+			// if allocStub.ClientStatus != "running" {
+			// 	return
+			// }
 
-			stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{})
-			if err != nil {
-				logError(err)
-				return
-			}
+			// stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{})
+			// if err != nil {
+			// 	logError(err)
+			// 	return
+			// }
 
-			allocationLabels := []string{
-				*alloc.Job.Name,
-				alloc.TaskGroup,
-				alloc.Name,
-				*alloc.Job.Region,
-				node.Datacenter,
-				node.Name,
-			}
-			ch <- prometheus.MustNewConstMetric(
-				allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), allocationLabels...,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				allocationMemoryBytes, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				allocationMemoryBytesLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
-			)
+			// allocationLabels := []string{
+			// 	*alloc.Job.Name,
+			// 	alloc.TaskGroup,
+			// 	alloc.Name,
+			// 	*alloc.Job.Region,
+			// 	node.Datacenter,
+			// 	node.Name,
+			// }
+			// ch <- prometheus.MustNewConstMetric(
+			// 	allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
+			// )
+			// ch <- prometheus.MustNewConstMetric(
+			// 	allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), allocationLabels...,
+			// )
+			// ch <- prometheus.MustNewConstMetric(
+			// 	allocationMemoryBytes, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
+			// )
+			// ch <- prometheus.MustNewConstMetric(
+			// 	allocationMemoryBytesLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
+			// )
 
-			for taskName, taskStats := range stats.Tasks {
-				taskLabels := append(allocationLabels, taskName)
-				ch <- prometheus.MustNewConstMetric(
-					taskCPUPercent, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.Percent, taskLabels...,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					taskCPUTotalTicks, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.TotalTicks, taskLabels...,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					taskMemoryRssBytes, prometheus.GaugeValue, float64(taskStats.ResourceUsage.MemoryStats.RSS), taskLabels...,
-				)
-			}
+			// for taskName, taskStats := range stats.Tasks {
+			// 	taskLabels := append(allocationLabels, taskName)
+			// 	ch <- prometheus.MustNewConstMetric(
+			// 		taskCPUPercent, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.Percent, taskLabels...,
+			// 	)
+			// 	ch <- prometheus.MustNewConstMetric(
+			// 		taskCPUTotalTicks, prometheus.GaugeValue, taskStats.ResourceUsage.CpuStats.TotalTicks, taskLabels...,
+			// 	)
+			// 	ch <- prometheus.MustNewConstMetric(
+			// 		taskMemoryRssBytes, prometheus.GaugeValue, float64(taskStats.ResourceUsage.MemoryStats.RSS), taskLabels...,
+			// 	)
+			// }
 
 		}(allocStub)
 	}
