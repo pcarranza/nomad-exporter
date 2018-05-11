@@ -310,9 +310,13 @@ func main() {
 
 	cfg := api.DefaultConfig()
 	cfg.Address = *nomadServer
+
+	timeout := time.Duration(*nomadTimeout) * time.Second
+
 	if err := cfg.SetTimeout(time.Duration(*nomadTimeout) * time.Second); err != nil {
 		logrus.Fatalf("failed to set timeout: %s", err)
 	}
+	cfg.WaitTime = timeout
 
 	if strings.HasPrefix(cfg.Address, "https://") {
 		cfg.TLSConfig.CACert = *tlsCaFile
