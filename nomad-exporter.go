@@ -359,6 +359,16 @@ func main() {
 	logrus.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
 
+var minVersion *go_ver.Version
+
+func init() {
+	m, err := go_ver.NewVersion("0.8")
+	if err != nil {
+		logrus.Fatalf("failed to parse the minimum version: %s", err)
+	}
+	minVersion = m
+}
+
 // Exporter is a nomad exporter
 type Exporter struct {
 	client                        *api.Client
@@ -547,11 +557,6 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 
 	var w sync.WaitGroup
 
-	minVersion, err := go_ver.NewVersion("0.8.1")
-	if err != nil {
-		return fmt.Errorf("failed to parse the minimum version: %s", err)
-	}
-
 	for _, node := range nodes {
 		w.Add(1)
 
@@ -572,14 +577,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			node.Datacenter, node.NodeClass, node.Name, drain,
 		)
 
-		nodeVersion, err := go_ver.NewVersion(node.Version)
-		if err != nil {
-			logError(fmt.Errorf("can't parse node %s version %s: %s", node.Name, node.Version, err))
-			continue
-		}
-
-		if nodeVersion.LessThan(minVersion) {
-			logrus.Debugf("Skipping node %s allocations metrics because there is no API for it in version %s.", node.Name, node.Version)
+		if !validVersion(node) {
 			continue
 		}
 
@@ -593,9 +591,13 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			f()
 		}()
 
-		pool <- func(a *api.NodeListStub) func() {
+		pool <- func(a api.NodeListStub) func() {
 			return func() {
 				defer w.Done()
+
+				if !validVersion(&a) {
+					return
+				}
 
 				logrus.Debugf("Fetching node %#v", a)
 				node, _, err := e.client.Nodes().Info(a.ID, opts)
@@ -664,7 +666,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					nodeLabels...,
 				)
 			}
-		}(node)
+		}(*node)
 	}
 
 	w.Wait()
@@ -906,4 +908,17 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 func logError(err error) {
 	clientErrors.Inc()
 	logrus.Error(err)
+}
+
+func validVersion(node *api.NodeListStub) bool {
+	nodeVersion, err := go_ver.NewVersion(node.Version)
+	if err != nil {
+		logrus.Errorf("can't parse node %s version %s: %s", node.Name, node.Version, err)
+		return false
+	}
+	if nodeVersion.LessThan(minVersion) {
+		logrus.Debugf("Skipping node %s because it has version %s", node.Name, node.Version)
+		return false
+	}
+	return true
 }
