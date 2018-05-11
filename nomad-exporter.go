@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	go_ver "github.com/hashicorp/go-version"
 	"github.com/hashicorp/nomad/api"
 	"github.com/pcarranza/nomad-exporter/version"
 	"github.com/prometheus/client_golang/prometheus"
@@ -546,6 +547,11 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 
 	var w sync.WaitGroup
 
+	minVersion, err := go_ver.NewVersion("0.8.1")
+	if err != nil {
+		return fmt.Errorf("failed to parse the minimum version: %s", err)
+	}
+
 	for _, node := range nodes {
 		w.Add(1)
 
@@ -565,6 +571,17 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			serfLanMembersStatus, prometheus.GaugeValue, float64(state),
 			node.Datacenter, node.NodeClass, node.Name, drain,
 		)
+
+		nodeVersion, err := go_ver.NewVersion(node.Version)
+		if err != nil {
+			logError(fmt.Errorf("can't parse node %s version %s: %s", node.Name, node.Version, err))
+			continue
+		}
+
+		if nodeVersion.LessThan(minVersion) {
+			logrus.Debugf("Skipping node %s allocations metrics because there is no API for it in version %s.", node.Name, node.Version)
+			continue
+		}
 
 		if !e.AllocationStatsMetricsEnabled {
 			continue
