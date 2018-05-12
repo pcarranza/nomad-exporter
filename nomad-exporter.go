@@ -560,10 +560,13 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 	logrus.Debugf("I've the nodes list with %d nodes", len(nodes))
 
 	var w sync.WaitGroup
+	pool := make(chan func(), 10) // Only run 10 at a time
+	go func() {
+		f := <-pool
+		f()
+	}()
 
 	for _, node := range nodes {
-		w.Add(1)
-
 		state := 1
 		drain := strconv.FormatBool(node.Drain)
 
@@ -581,7 +584,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			node.Datacenter, node.NodeClass, node.Name, drain,
 		)
 
-		if !validVersion(node) {
+		if !validVersion(node.Name, node.Version) {
 			continue
 		}
 
@@ -589,19 +592,10 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 			continue
 		}
 
-		pool := make(chan func(), 10) // Only run 10 at a time
-		go func() {
-			f := <-pool
-			f()
-		}()
-
+		w.Add(1)
 		pool <- func(a api.NodeListStub) func() {
 			return func() {
 				defer w.Done()
-
-				if !validVersion(&a) {
-					return
-				}
 
 				logrus.Debugf("Fetching node %#v", a)
 				node, _, err := e.client.Nodes().Info(a.ID, opts)
@@ -745,6 +739,11 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 			})
 			if err != nil {
 				logError(err)
+				return
+			}
+
+			v := node.Attributes["nomad.version"]
+			if !validVersion(node.Name, v) {
 				return
 			}
 
@@ -914,14 +913,14 @@ func logError(err error) {
 	logrus.Error(err)
 }
 
-func validVersion(node *api.NodeListStub) bool {
-	nodeVersion, err := go_ver.NewVersion(node.Version)
+func validVersion(name, ver string) bool {
+	nodeVersion, err := go_ver.NewVersion(ver)
 	if err != nil {
-		logrus.Errorf("can't parse node %s version %s: %s", node.Name, node.Version, err)
+		logrus.Errorf("can't parse node %s version %s: %s", name, ver, err)
 		return false
 	}
 	if nodeVersion.LessThan(minVersion) {
-		logrus.Debugf("Skipping node %s because it has version %s", node.Name, node.Version)
+		logrus.Debugf("Skipping node %s because it has version %s", name, ver)
 		return false
 	}
 	return true
