@@ -71,14 +71,34 @@ var (
 		"Allocation memory usage",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
-	allocationMemoryBytesLimit = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
-		"Allocation memory limit.",
+	allocationMemoryBytesRequired = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_required_bytes"),
+		"Allocation memory required.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
-	allocationCPU = prometheus.NewDesc(
+	allocationCPURequired = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_required"),
+		"Allocation CPU Required.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUPercent = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_percent"),
 		"Allocation CPU usage.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUTicks = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_ticks"),
+		"Allocation CPU Ticks usage.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUUserMode = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_user_mode"),
+		"Allocation CPU User Mode Usage.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUSystemMode = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_system_mode"),
+		"Allocation CPU System Mode Usage.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUThrottled = prometheus.NewDesc(
@@ -403,9 +423,13 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serfLanMembersStatus
 	ch <- jobsTotal
 	ch <- allocationMemoryBytes
-	ch <- allocationCPU
+	ch <- allocationCPUPercent
+	ch <- allocationCPUTicks
+	ch <- allocationCPUUserMode
+	ch <- allocationCPUSystemMode
 	ch <- allocationCPUThrottled
-	ch <- allocationMemoryBytesLimit
+	ch <- allocationMemoryBytesRequired
+	ch <- allocationCPURequired
 	ch <- taskCPUPercent
 	ch <- taskCPUTotalTicks
 	ch <- taskMemoryRssBytes
@@ -792,7 +816,7 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				node.Name,
 			}
 			ch <- prometheus.MustNewConstMetric(
-				allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
+				allocationCPUPercent, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
 				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), allocationLabels...,
@@ -801,7 +825,20 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				allocationMemoryBytes, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemoryBytesLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
+				allocationCPUTicks, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.TotalTicks), allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPUUserMode, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.UserMode), allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPUSystemMode, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.SystemMode), allocationLabels...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				allocationMemoryBytesRequired, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPURequired, prometheus.GaugeValue, float64(*alloc.Resources.CPU), allocationLabels...,
 			)
 
 			for taskName, taskStats := range stats.Tasks {
