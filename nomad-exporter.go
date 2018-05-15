@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	go_ver "github.com/hashicorp/go-version"
 	"github.com/hashicorp/nomad/api"
 	"github.com/pcarranza/nomad-exporter/version"
 	"github.com/prometheus/client_golang/prometheus"
@@ -70,14 +71,34 @@ var (
 		"Allocation memory usage",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
-	allocationMemoryBytesLimit = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes_limit"),
-		"Allocation memory limit.",
+	allocationMemoryBytesRequired = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_required_bytes"),
+		"Allocation memory required.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
-	allocationCPU = prometheus.NewDesc(
+	allocationCPURequired = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_required"),
+		"Allocation CPU Required.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUPercent = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_percent"),
 		"Allocation CPU usage.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUTicks = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_ticks"),
+		"Allocation CPU Ticks usage.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUUserMode = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_user_mode"),
+		"Allocation CPU User Mode Usage.",
+		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+	)
+	allocationCPUSystemMode = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "allocation_cpu_system_mode"),
+		"Allocation CPU System Mode Usage.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUThrottled = prometheus.NewDesc(
@@ -288,6 +309,14 @@ func main() {
 		allowStaleReads = flag.Bool(
 			"allow-stale-reads", false, "allow to read metrics from a non-leader server",
 		)
+		noPeerMetricsEnabled            = flag.Bool("no-peer-metrics", false, "disable peer metrics collection")
+		noNodeMetricsEnabled            = flag.Bool("no-node-metrics", false, "disable node metrics collection")
+		noJobMetricsEnabled             = flag.Bool("no-jobs-metrics", false, "disable jobs metrics collection")
+		noAllocationsMetricsEnabled     = flag.Bool("no-allocations-metrics", false, "disable allocations metrics collection")
+		noEvalMetricsEnabled            = flag.Bool("no-eval-metrics", false, "disable eval metrics collection")
+		noDeploymentMetricsEnabled      = flag.Bool("no-deployment-metrics", false, "disable deployment metrics collection")
+		noAllocationStatsMetricsEnabled = flag.Bool("no-allocation-stats-metrics", false, "disable stats metrics collection")
+		concurrency                     = flag.Int("concurrency", 20, "max number of goroutines to launch concurrently when poking the API")
 	)
 	flag.Parse()
 
@@ -302,9 +331,13 @@ func main() {
 
 	cfg := api.DefaultConfig()
 	cfg.Address = *nomadServer
+
+	timeout := time.Duration(*nomadTimeout) * time.Second
+
 	if err := cfg.SetTimeout(time.Duration(*nomadTimeout) * time.Second); err != nil {
 		logrus.Fatalf("failed to set timeout: %s", err)
 	}
+	cfg.WaitTime = timeout
 
 	if strings.HasPrefix(cfg.Address, "https://") {
 		cfg.TLSConfig.CACert = *tlsCaFile
@@ -315,11 +348,26 @@ func main() {
 		cfg.TLSConfig.TLSServerName = *tlsServerName
 	}
 
-	exporter, err := newExporter(cfg)
+	apiClient, err := api.NewClient(cfg)
 	if err != nil {
-		logrus.Fatalf("Could not create exporter: %s", err)
+		logrus.Fatalf("could not create exporter: %s", err)
 	}
-	exporter.SetAllowStaleReads(*allowStaleReads)
+
+	exporter := &Exporter{
+		client:                        apiClient,
+		AllowStaleReads:               *allowStaleReads,
+		PeerMetricsEnabled:            !*noPeerMetricsEnabled,
+		NodeMetricsEnabled:            !*noNodeMetricsEnabled,
+		JobMetricEnabled:              !*noJobMetricsEnabled,
+		AllocationsMetricsEnabled:     !*noAllocationsMetricsEnabled,
+		EvalMetricsEnabled:            !*noEvalMetricsEnabled,
+		DeploymentMetricsEnabled:      !*noDeploymentMetricsEnabled,
+		AllocationStatsMetricsEnabled: !*noAllocationStatsMetricsEnabled,
+		Concurrency:                   *concurrency,
+	}
+
+	logrus.Debugf("Created exporter %#v", *exporter)
+
 	prometheus.MustRegister(exporter)
 
 	http.Handle(*metricsPath, prometheus.Handler())
@@ -337,30 +385,33 @@ func main() {
 	logrus.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
 
+var minVersion *go_ver.Version
+
+func init() {
+	m, err := go_ver.NewVersion("0.8")
+	if err != nil {
+		logrus.Fatalf("failed to parse the minimum version: %s", err)
+	}
+	minVersion = m
+}
+
 // Exporter is a nomad exporter
 type Exporter struct {
-	client          *api.Client
-	allowStaleReads bool
-	amILeader       bool
-}
-
-func newExporter(cfg *api.Config) (*Exporter, error) {
-	client, err := api.NewClient(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("could not create exporter: %s", err)
-	}
-	return &Exporter{
-		client: client,
-	}, nil
-}
-
-// SetAllowStaleReads if set to true we will poke for metrics to the node even when it's not a leader
-func (e *Exporter) SetAllowStaleReads(a bool) {
-	e.allowStaleReads = a
+	client                        *api.Client
+	AllowStaleReads               bool
+	amILeader                     bool
+	PeerMetricsEnabled            bool
+	NodeMetricsEnabled            bool
+	JobMetricEnabled              bool
+	AllocationsMetricsEnabled     bool
+	EvalMetricsEnabled            bool
+	DeploymentMetricsEnabled      bool
+	AllocationStatsMetricsEnabled bool
+	Concurrency                   int
 }
 
 func (e *Exporter) shouldReadMetrics() bool {
-	return e.amILeader || e.allowStaleReads
+	return e.amILeader || e.AllowStaleReads
 }
 
 // Describe implements Collector interface.
@@ -372,9 +423,13 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serfLanMembersStatus
 	ch <- jobsTotal
 	ch <- allocationMemoryBytes
-	ch <- allocationCPU
+	ch <- allocationCPUPercent
+	ch <- allocationCPUTicks
+	ch <- allocationCPUUserMode
+	ch <- allocationCPUSystemMode
 	ch <- allocationCPUThrottled
-	ch <- allocationMemoryBytesLimit
+	ch <- allocationMemoryBytesRequired
+	ch <- allocationCPURequired
 	ch <- taskCPUPercent
 	ch <- taskCPUTotalTicks
 	ch <- taskMemoryRssBytes
@@ -417,34 +472,46 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- clientErrors
 
-	if err := e.collectPeerMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.PeerMetricsEnabled {
+		if err := e.collectPeerMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectNodes(ch); err != nil {
-		logError(err)
-		return
+	if e.NodeMetricsEnabled {
+		if err := e.collectNodes(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectJobsMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.JobMetricEnabled {
+		if err := e.collectJobsMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectAllocations(ch); err != nil {
-		logError(err)
-		return
+	if e.AllocationsMetricsEnabled {
+		if err := e.collectAllocations(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectEvalMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.EvalMetricsEnabled {
+		if err := e.collectEvalMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 
-	if err := e.collectDeploymentMetrics(ch); err != nil {
-		logError(err)
-		return
+	if e.DeploymentMetricsEnabled {
+		if err := e.collectDeploymentMetrics(ch); err != nil {
+			logError(err)
+			return
+		}
 	}
 }
 
@@ -488,7 +555,9 @@ func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	jobs, _, err := e.client.Jobs().List(&api.QueryOptions{})
+	jobs, _, err := e.client.Jobs().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return fmt.Errorf("could not get jobs: %s", err)
 	}
@@ -504,7 +573,9 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	opts := &api.QueryOptions{}
+	opts := &api.QueryOptions{
+		AllowStale: true,
+	}
 
 	nodes, _, err := e.client.Nodes().List(opts)
 	if err != nil {
@@ -516,41 +587,47 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 	logrus.Debugf("I've the nodes list with %d nodes", len(nodes))
 
 	var w sync.WaitGroup
+	pool := make(chan func(), e.Concurrency)
+	go func() {
+		for f := range pool {
+			go f()
+		}
+	}()
 
 	for _, node := range nodes {
 		w.Add(1)
-
-		state := 1
-		drain := strconv.FormatBool(node.Drain)
-
-		ch <- prometheus.MustNewConstMetric(
-			nodeInfo, prometheus.GaugeValue, 1,
-			node.Name, node.Version, node.NodeClass, node.Status,
-			drain, node.Datacenter, node.SchedulingEligibility,
-		)
-
-		if node.Status == "down" {
-			state = 0
-		}
-		ch <- prometheus.MustNewConstMetric(
-			serfLanMembersStatus, prometheus.GaugeValue, float64(state),
-			node.Datacenter, node.NodeClass, node.Name, drain,
-		)
-
-		pool := make(chan func(), 10) // Only run 10 at a time
-		go func() {
-			f := <-pool
-			f()
-		}()
-
-		pool <- func(a *api.NodeListStub) func() {
+		pool <- func(node api.NodeListStub) func() {
 			return func() {
 				defer w.Done()
+				state := 1
+				drain := strconv.FormatBool(node.Drain)
 
-				logrus.Debugf("Fetching node %#v", a)
-				node, _, err := e.client.Nodes().Info(a.ID, opts)
+				ch <- prometheus.MustNewConstMetric(
+					nodeInfo, prometheus.GaugeValue, 1,
+					node.Name, node.Version, node.NodeClass, node.Status,
+					drain, node.Datacenter, node.SchedulingEligibility,
+				)
+
+				if node.Status == "down" {
+					state = 0
+				}
+				ch <- prometheus.MustNewConstMetric(
+					serfLanMembersStatus, prometheus.GaugeValue, float64(state),
+					node.Datacenter, node.NodeClass, node.Name, drain,
+				)
+
+				if !validVersion(node.Name, node.Version) {
+					return
+				}
+
+				if !e.AllocationStatsMetricsEnabled {
+					return
+				}
+
+				logrus.Debugf("Fetching node %#v", node)
+				node, _, err := e.client.Nodes().Info(node.ID, opts)
 				if err != nil {
-					logError(fmt.Errorf("failed to get node %s info: %s", a.Name, err))
+					logError(fmt.Errorf("failed to get node %s info: %s", node.Name, err))
 					return
 				}
 
@@ -598,7 +675,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					nodeLabels...,
 				)
 
-				nodeStats, err := e.client.Nodes().Stats(a.ID, opts)
+				nodeStats, err := e.client.Nodes().Stats(node.ID, opts)
 				if err != nil {
 					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
 					return
@@ -614,7 +691,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					nodeLabels...,
 				)
 			}
-		}(node)
+		}(*node)
 	}
 
 	w.Wait()
@@ -661,7 +738,9 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{})
+	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return fmt.Errorf("could not get allocations: %s", err)
 	}
@@ -671,18 +750,27 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 	for _, allocStub := range allocStubs {
 		w.Add(1)
 
-		go func(allocStub *api.AllocationListStub) {
+		go func(allocStub api.AllocationListStub) {
 			defer w.Done()
 
-			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{})
+			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
+				AllowStale: true,
+			})
 			if err != nil {
 				logError(err)
 				return
 			}
 
-			node, _, err := e.client.Nodes().Info(alloc.NodeID, &api.QueryOptions{})
+			node, _, err := e.client.Nodes().Info(alloc.NodeID, &api.QueryOptions{
+				AllowStale: true,
+			})
 			if err != nil {
 				logError(err)
+				return
+			}
+
+			v := node.Attributes["nomad.version"]
+			if !validVersion(node.Name, v) {
 				return
 			}
 
@@ -728,7 +816,7 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				node.Name,
 			}
 			ch <- prometheus.MustNewConstMetric(
-				allocationCPU, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
+				allocationCPUPercent, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
 				allocationCPUThrottled, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.ThrottledTime), allocationLabels...,
@@ -737,7 +825,20 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				allocationMemoryBytes, prometheus.GaugeValue, float64(stats.ResourceUsage.MemoryStats.RSS), allocationLabels...,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				allocationMemoryBytesLimit, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
+				allocationCPUTicks, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.TotalTicks), allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPUUserMode, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.UserMode), allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPUSystemMode, prometheus.GaugeValue, float64(stats.ResourceUsage.CpuStats.SystemMode), allocationLabels...,
+			)
+
+			ch <- prometheus.MustNewConstMetric(
+				allocationMemoryBytesRequired, prometheus.GaugeValue, float64(*alloc.Resources.MemoryMB)*1024*1024, allocationLabels...,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				allocationCPURequired, prometheus.GaugeValue, float64(*alloc.Resources.CPU), allocationLabels...,
 			)
 
 			for taskName, taskStats := range stats.Tasks {
@@ -753,7 +854,7 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				)
 			}
 
-		}(allocStub)
+		}(*allocStub)
 	}
 
 	w.Wait()
@@ -770,7 +871,9 @@ func (e *Exporter) collectEvalMetrics(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	evals, _, err := e.client.Evaluations().List(&api.QueryOptions{})
+	evals, _, err := e.client.Evaluations().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return fmt.Errorf("could not get evaluation metrics: %s", err)
 	}
@@ -798,7 +901,9 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
-	deployments, _, err := e.client.Deployments().List(&api.QueryOptions{})
+	deployments, _, err := e.client.Deployments().List(&api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		return err
 	}
@@ -846,4 +951,17 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 func logError(err error) {
 	clientErrors.Inc()
 	logrus.Error(err)
+}
+
+func validVersion(name, ver string) bool {
+	nodeVersion, err := go_ver.NewVersion(ver)
+	if err != nil {
+		logrus.Errorf("can't parse node %s version %s: %s", name, ver, err)
+		return false
+	}
+	if nodeVersion.LessThan(minVersion) {
+		logrus.Debugf("Skipping node %s because it has version %s", name, ver)
+		return false
+	}
+	return true
 }
