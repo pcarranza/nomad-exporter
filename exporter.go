@@ -98,8 +98,21 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- clientErrors
 
+	nodes, err := e.fetchNodes()
+	if err != nil {
+		logError(err)
+		return
+	}
+
 	if e.NodeMetricsEnabled {
-		if err := measure("nodes", func() error { return e.collectNodes(ch) }); err != nil {
+		if err := measure("nodes", func() error { return e.collectNodes(nodes, ch) }); err != nil {
+			logError(err)
+			return
+		}
+	}
+
+	if e.AllocationsMetricsEnabled {
+		if err := measure("allocations", func() error { return e.collectAllocations(nodes, ch) }); err != nil {
 			logError(err)
 			return
 		}
@@ -114,13 +127,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	if e.JobMetricEnabled {
 		if err := measure("jobs", func() error { return e.collectJobsMetrics(ch) }); err != nil {
-			logError(err)
-			return
-		}
-	}
-
-	if e.AllocationsMetricsEnabled {
-		if err := measure("allocations", func() error { return e.collectAllocations(ch) }); err != nil {
 			logError(err)
 			return
 		}
@@ -198,16 +204,7 @@ func (e *Exporter) collectJobsMetrics(ch chan<- prometheus.Metric) error {
 	return nil
 }
 
-func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
-	o := newLatencyObserver("list_nodes")
-	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{
-		AllowStale: true,
-		WaitTime:   1 * time.Millisecond,
-	})
-	o.observe()
-	if err != nil {
-		return fmt.Errorf("failed to get nodes list: %s", err)
-	}
+func (e *Exporter) collectNodes(nodes nodeMap, ch chan<- prometheus.Metric) error {
 	ch <- prometheus.MustNewConstMetric(
 		serfLanMembers, prometheus.GaugeValue, float64(len(nodes)),
 	)
@@ -239,7 +236,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					drain, node.Datacenter, node.SchedulingEligibility,
 				)
 
-				if node.Status == "down" {
+				if !nodes.IsReady(node.ID) {
 					state = 0
 				}
 				ch <- prometheus.MustNewConstMetric(
@@ -247,7 +244,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					node.Datacenter, node.NodeClass, node.Name, drain,
 				)
 
-				if node.Status != "ready" {
+				if !nodes.IsReady(node.ID) {
 					logrus.Debugf("Skipping node information and allocations %s because it is %s", node.Name, node.Status)
 					return
 				}
@@ -377,7 +374,7 @@ func (e *Exporter) collectPeerMetrics(ch chan<- prometheus.Metric) error {
 	return nil
 }
 
-func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
+func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric) error {
 	allocation.Reset()
 	taskCount.Reset()
 
@@ -403,26 +400,29 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 		go func(allocStub api.AllocationListStub) {
 			defer w.Done()
 
-			o := newLatencyObserver("get_allocation_node")
-			node, _, err := e.client.Nodes().Info(allocStub.NodeID, &api.QueryOptions{
-				AllowStale: true,
-				WaitTime:   1 * time.Millisecond,
-			})
-			o.observe()
-			if err != nil {
-				logError(err)
+			n := nodes[allocStub.NodeID]
+
+			if !nodes.IsReady(allocStub.NodeID) {
+				logrus.Debugf("Skipping fetching allocation %s for node %s because it's not in ready state but %s",
+					allocStub.Name, n.Name, n.Status)
+				return
+			}
+			if !validVersion(n.Name, n.Version) {
+				logrus.Debugf("Skipping fetching allocation %s for node %s because it's not a supported version but %s",
+					allocStub.Name, n.Name, n.Version)
 				return
 			}
 
-			if node.Status != "ready" {
-				logrus.Debugf("Skipping fetching allocation %s for node %s because it's not in ready state but %s",
-					allocStub.Name, node.Name, node.Status)
-				return
-			}
-			v := node.Attributes["nomad.version"]
-			if !validVersion(node.Name, v) {
-				return
-			}
+			// o := newLatencyObserver("get_allocation_node")
+			// node, _, err := e.client.Nodes().Info(allocStub.NodeID, &api.QueryOptions{
+			// 	AllowStale: true,
+			// 	WaitTime:   1 * time.Millisecond,
+			// })
+			// o.observe()
+			// if err != nil {
+			// 	logError(err)
+			// 	return
+			// }
 
 			o = newLatencyObserver("get_allocation_info")
 			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
@@ -443,7 +443,7 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				"job_type":       *job.Type,
 				"job_id":         alloc.JobID,
 				"task_group":     alloc.TaskGroup,
-				"node":           node.Name,
+				"node":           n.Name,
 			}).Add(1)
 
 			taskStates := alloc.TaskStates
@@ -453,7 +453,7 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 					"state":    task.State,
 					"failed":   strconv.FormatBool(task.Failed),
 					"job_type": *job.Type,
-					"node":     node.Name,
+					"node":     n.Name,
 				}).Add(1)
 			}
 
@@ -462,7 +462,7 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				return
 			}
 
-			no := newNodeLatencyObserver(node.Name, "get_allocation_stats")
+			no := newNodeLatencyObserver(n.Name, "get_allocation_stats")
 			stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{
 				AllowStale: true,
 				WaitTime:   1 * time.Millisecond,
@@ -478,8 +478,8 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				alloc.TaskGroup,
 				alloc.Name,
 				*alloc.Job.Region,
-				node.Datacenter,
-				node.Name,
+				n.Datacenter,
+				n.Name,
 			}
 			ch <- prometheus.MustNewConstMetric(
 				allocationCPUPercent, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
@@ -616,14 +616,35 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 	return nil
 }
 
-// func (e Exporter) loadNodes() {
-// 	o := newLatencyObserver("list_nodes")
-// 	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{
-// 		AllowStale: true,
-// 		WaitTime:   1 * time.Millisecond,
-// 	})
-// 	o.observe()
-// 	if err != nil {
-// 		return fmt.Errorf("failed to get nodes list: %s", err)
-// 	}
-// }
+func (e Exporter) fetchNodes() (nodeMap, error) {
+	o := newLatencyObserver("fetch_nodes")
+	nodes, _, err := e.client.Nodes().List(&api.QueryOptions{
+		AllowStale: true,
+		WaitTime:   1 * time.Millisecond,
+	})
+	o.observe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nodes list: %s", err)
+	}
+
+	m := make(map[string]*api.NodeListStub)
+	for _, n := range nodes {
+		m[n.ID] = n
+	}
+	return m, nil
+}
+
+type nodeMap map[string]*api.NodeListStub
+
+func (n nodeMap) IsReady(id string) bool {
+	node, ok := n[id]
+	if !ok {
+		return false
+	}
+	return node.Status == "ready"
+}
+
+type nodeList struct {
+	nodes    nodeMap
+	nodeInfo map[string]*api.Node
+}
