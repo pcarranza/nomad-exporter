@@ -277,6 +277,22 @@ var (
 			"auto_revert",
 		},
 	)
+
+	apiLatencySummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
+		Namespace: namespace,
+		Name:      "api_latency_seconds",
+	},
+		[]string{
+			"query",
+		})
+	apiNodeLatencySummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
+		Namespace: namespace,
+		Name:      "api_node_latency_seconds",
+	},
+		[]string{
+			"node",
+			"query",
+		})
 )
 
 func main() {
@@ -455,11 +471,15 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	deploymentTaskGroupUnhealthyAllocs.Describe(ch)
 
 	clientErrors.Describe(ch)
+	apiLatencySummary.Describe(ch)
+	apiNodeLatencySummary.Describe(ch)
 }
 
 // Collect collects nomad metrics
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	if err := e.collectLeader(ch); err != nil {
+	if err := measure("leader", func() error {
+		return e.collectLeader(ch)
+	}); err != nil {
 		ch <- prometheus.MustNewConstMetric(
 			up, prometheus.GaugeValue, 0,
 		)
@@ -473,46 +493,49 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- clientErrors
 
 	if e.PeerMetricsEnabled {
-		if err := e.collectPeerMetrics(ch); err != nil {
+		if err := measure("peers", func() error { return e.collectPeerMetrics(ch) }); err != nil {
 			logError(err)
 			return
 		}
 	}
 
 	if e.NodeMetricsEnabled {
-		if err := e.collectNodes(ch); err != nil {
+		if err := measure("nodes", func() error { return e.collectNodes(ch) }); err != nil {
 			logError(err)
 			return
 		}
 	}
 
 	if e.JobMetricEnabled {
-		if err := e.collectJobsMetrics(ch); err != nil {
+		if err := measure("jobs", func() error { return e.collectJobsMetrics(ch) }); err != nil {
 			logError(err)
 			return
 		}
 	}
 
 	if e.AllocationsMetricsEnabled {
-		if err := e.collectAllocations(ch); err != nil {
+		if err := measure("allocations", func() error { return e.collectAllocations(ch) }); err != nil {
 			logError(err)
 			return
 		}
 	}
 
 	if e.EvalMetricsEnabled {
-		if err := e.collectEvalMetrics(ch); err != nil {
+		if err := measure("eval", func() error { return e.collectEvalMetrics(ch) }); err != nil {
 			logError(err)
 			return
 		}
 	}
 
 	if e.DeploymentMetricsEnabled {
-		if err := e.collectDeploymentMetrics(ch); err != nil {
+		if err := measure("deployment", func() error { return e.collectDeploymentMetrics(ch) }); err != nil {
 			logError(err)
 			return
 		}
 	}
+
+	apiLatencySummary.Collect(ch)
+	apiNodeLatencySummary.Collect(ch)
 }
 
 func (e *Exporter) collectLeader(ch chan<- prometheus.Metric) error {
@@ -577,6 +600,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 		AllowStale: true,
 	}
 
+	o := newNodeLatencyObserver("all", "list")
 	nodes, _, err := e.client.Nodes().List(opts)
 	if err != nil {
 		return fmt.Errorf("failed to get nodes list: %s", err)
@@ -584,6 +608,7 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 	ch <- prometheus.MustNewConstMetric(
 		serfLanMembers, prometheus.GaugeValue, float64(len(nodes)),
 	)
+	o.observe()
 	logrus.Debugf("I've the nodes list with %d nodes", len(nodes))
 
 	var w sync.WaitGroup
@@ -616,12 +641,12 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					node.Datacenter, node.NodeClass, node.Name, drain,
 				)
 
-				if !validVersion(node.Name, node.Version) {
+				if node.Status != "ready" {
+					logrus.Debugf("Skipping node information and allocations %s because it is %s", node.Name, node.Status)
 					return
 				}
 
-				if node.Status != "ready" {
-					logrus.Debug("Skipping node information and allocations %s because it is %s", node.Name, node.Status)
+				if !validVersion(node.Name, node.Version) {
 					return
 				}
 
@@ -630,19 +655,23 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 				}
 
 				logrus.Debugf("Fetching node %#v", node)
+				o := newNodeLatencyObserver(node.Name, "fetch_node")
 				node, _, err := e.client.Nodes().Info(node.ID, opts)
 				if err != nil {
-					logError(fmt.Errorf("failed to get node %s info: %s", node.Name, err))
+					logError(fmt.Errorf("Failed to get node %s info: %s", node.Name, err))
 					return
 				}
+				o.observe()
 
 				logrus.Debugf("Node %s fetched", node.Name)
 
+				o = newNodeLatencyObserver(node.Name, "get_running_allocs")
 				runningAllocs, err := e.getRunningAllocs(node.ID)
 				if err != nil {
 					logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
 					return
 				}
+				o.observe()
 
 				var allocatedCPU, allocatedMemory int
 				for _, alloc := range runningAllocs {
@@ -676,11 +705,13 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					nodeLabels...,
 				)
 
+				o = newNodeLatencyObserver(node.Name, "get_stats")
 				nodeStats, err := e.client.Nodes().Stats(node.ID, opts)
 				if err != nil {
 					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
 					return
 				}
+				o.observe()
 				logrus.Debugf("Fetched node %s stats", node.Name)
 
 				ch <- prometheus.MustNewConstMetric(
@@ -739,9 +770,11 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 		return nil
 	}
 
+	o := newLatencyObserver("get_allocations")
 	allocStubs, _, err := e.client.Allocations().List(&api.QueryOptions{
 		AllowStale: true,
 	})
+	o.observe()
 	if err != nil {
 		return fmt.Errorf("could not get allocations: %s", err)
 	}
@@ -754,24 +787,33 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 		go func(allocStub api.AllocationListStub) {
 			defer w.Done()
 
+			o := newLatencyObserver("get_allocation_node")
+			node, _, err := e.client.Nodes().Info(allocStub.NodeID, &api.QueryOptions{
+				AllowStale: true,
+			})
+			o.observe()
+			if err != nil {
+				logError(err)
+				return
+			}
+
+			if node.Status != "ready" {
+				logrus.Debugf("Skipping fetching allocation %s for node %s because it's not in ready state but %s",
+					allocStub.Name, node.Name, node.Status)
+				return
+			}
+			v := node.Attributes["nomad.version"]
+			if !validVersion(node.Name, v) {
+				return
+			}
+
+			o = newLatencyObserver("get_allocation_info")
 			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
 				AllowStale: true,
 			})
+			o.observe()
 			if err != nil {
 				logError(err)
-				return
-			}
-
-			node, _, err := e.client.Nodes().Info(alloc.NodeID, &api.QueryOptions{
-				AllowStale: true,
-			})
-			if err != nil {
-				logError(err)
-				return
-			}
-
-			v := node.Attributes["nomad.version"]
-			if !validVersion(node.Name, v) {
 				return
 			}
 
@@ -802,7 +844,9 @@ func (e *Exporter) collectAllocations(ch chan<- prometheus.Metric) error {
 				return
 			}
 
+			no := newNodeLatencyObserver(node.Name, "get_allocation_stats")
 			stats, err := e.client.Allocations().Stats(alloc, &api.QueryOptions{})
+			no.observe()
 			if err != nil {
 				logError(err)
 				return
@@ -965,4 +1009,43 @@ func validVersion(name, ver string) bool {
 		return false
 	}
 	return true
+}
+
+func measure(query string, f func() error) error {
+	o := newLatencyObserver(query)
+	err := f()
+	o.observe()
+	return err
+}
+
+type latencyObserver struct {
+	startTime time.Time
+	node      string
+	query     string
+}
+
+func newLatencyObserver(query string) latencyObserver {
+	return latencyObserver{
+		node:      "",
+		query:     query,
+		startTime: time.Now(),
+	}
+}
+
+func newNodeLatencyObserver(node, query string) latencyObserver {
+	return latencyObserver{
+		node:      node,
+		query:     query,
+		startTime: time.Now(),
+	}
+}
+
+func (n latencyObserver) observe() {
+	duration := time.Since(n.startTime)
+
+	if n.node == "" {
+		apiLatencySummary.WithLabelValues(n.query).Observe(duration.Seconds())
+	} else {
+		apiNodeLatencySummary.WithLabelValues(n.node, n.query).Observe(duration.Seconds())
+	}
 }
