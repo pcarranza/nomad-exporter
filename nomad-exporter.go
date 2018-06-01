@@ -620,6 +620,11 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 					return
 				}
 
+				if node.Status != "ready" {
+					logrus.Debug("Skipping node information and allocations %s because it is %s", node.Name, node.Status)
+					return
+				}
+
 				if !e.AllocationStatsMetricsEnabled {
 					return
 				}
@@ -636,10 +641,6 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 				runningAllocs, err := e.getRunningAllocs(node.ID)
 				if err != nil {
 					logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
-					return
-				}
-				if node.Status != "ready" {
-					logrus.Debugf("Ignoring node %s because it's not ready", node.Name)
 					return
 				}
 
