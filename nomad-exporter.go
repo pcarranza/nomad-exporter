@@ -1047,7 +1047,9 @@ func (n latencyObserver) observe() {
 
 	if n.node == "" {
 		apiLatencySummary.WithLabelValues(n.query).Observe(duration.Seconds())
+		logrus.Debugf("Duration for query %s: %f", n.query, duration.Seconds())
 	} else {
 		apiNodeLatencySummary.WithLabelValues(n.node, n.query).Observe(duration.Seconds())
+		logrus.Debugf("Duration for node %s, query %s: %f", n.query, n.node, duration.Seconds())
 	}
 }
