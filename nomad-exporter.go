@@ -281,6 +281,7 @@ var (
 	apiLatencySummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: namespace,
 		Name:      "api_latency_seconds",
+		Help:      "nomad api latency for different queries",
 	},
 		[]string{
 			"query",
@@ -288,6 +289,7 @@ var (
 	apiNodeLatencySummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: namespace,
 		Name:      "api_node_latency_seconds",
+		Help:      "nomad api latency for different nodes and queries",
 	},
 		[]string{
 			"node",
@@ -600,15 +602,15 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 		AllowStale: true,
 	}
 
-	o := newNodeLatencyObserver("all", "list")
+	o := newLatencyObserver("list_nodes")
 	nodes, _, err := e.client.Nodes().List(opts)
+	o.observe()
 	if err != nil {
 		return fmt.Errorf("failed to get nodes list: %s", err)
 	}
 	ch <- prometheus.MustNewConstMetric(
 		serfLanMembers, prometheus.GaugeValue, float64(len(nodes)),
 	)
-	o.observe()
 	logrus.Debugf("I've the nodes list with %d nodes", len(nodes))
 
 	var w sync.WaitGroup
@@ -657,21 +659,21 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 				logrus.Debugf("Fetching node %#v", node)
 				o := newNodeLatencyObserver(node.Name, "fetch_node")
 				node, _, err := e.client.Nodes().Info(node.ID, opts)
+				o.observe()
 				if err != nil {
 					logError(fmt.Errorf("Failed to get node %s info: %s", node.Name, err))
 					return
 				}
-				o.observe()
 
 				logrus.Debugf("Node %s fetched", node.Name)
 
 				o = newNodeLatencyObserver(node.Name, "get_running_allocs")
 				runningAllocs, err := e.getRunningAllocs(node.ID)
+				o.observe()
 				if err != nil {
 					logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
 					return
 				}
-				o.observe()
 
 				var allocatedCPU, allocatedMemory int
 				for _, alloc := range runningAllocs {
@@ -707,11 +709,11 @@ func (e *Exporter) collectNodes(ch chan<- prometheus.Metric) error {
 
 				o = newNodeLatencyObserver(node.Name, "get_stats")
 				nodeStats, err := e.client.Nodes().Stats(node.ID, opts)
+				o.observe()
 				if err != nil {
 					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
 					return
 				}
-				o.observe()
 				logrus.Debugf("Fetched node %s stats", node.Name)
 
 				ch <- prometheus.MustNewConstMetric(
