@@ -12,6 +12,8 @@ import (
 	"github.com/hashicorp/nomad/api"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+
+	_ "net/http/pprof"
 )
 
 // Exporter is a nomad exporter
