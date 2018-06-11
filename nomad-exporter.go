@@ -273,18 +273,20 @@ var (
 		},
 	)
 
-	apiLatencySummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
+	apiLatencySummary = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Name:      "api_latency_seconds",
 		Help:      "nomad api latency for different queries",
+		Buckets:   prometheus.ExponentialBuckets(0.00025, 2, 12),
 	},
 		[]string{
 			"query",
 		})
-	apiNodeLatencySummary = prometheus.NewSummaryVec(prometheus.SummaryOpts{
+	apiNodeLatencySummary = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Name:      "api_node_latency_seconds",
 		Help:      "nomad api latency for different nodes and queries",
+		Buckets:   prometheus.ExponentialBuckets(0.00025, 2, 12),
 	},
 		[]string{
 			"node",
