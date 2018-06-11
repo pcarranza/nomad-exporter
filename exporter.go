@@ -415,17 +415,6 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 				return
 			}
 
-			// o := newLatencyObserver("get_allocation_node")
-			// node, _, err := e.client.Nodes().Info(allocStub.NodeID, &api.QueryOptions{
-			// 	AllowStale: true,
-			// 	WaitTime:   1 * time.Millisecond,
-			// })
-			// o.observe()
-			// if err != nil {
-			// 	logError(err)
-			// 	return
-			// }
-
 			o = newLatencyObserver("get_allocation_info")
 			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
 				AllowStale: true,
