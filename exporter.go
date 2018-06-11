@@ -261,7 +261,7 @@ func (e *Exporter) collectNodes(nodes nodeMap, ch chan<- prometheus.Metric) erro
 
 				logrus.Debugf("Fetching node %#v", node)
 				o := newNodeLatencyObserver(node.Name, "fetch_node")
-				node, _, err := e.client.Nodes().Info(node.ID, &api.QueryOptions{
+				n, _, err := e.client.Nodes().Info(node.ID, &api.QueryOptions{
 					AllowStale: true,
 					WaitTime:   1 * time.Millisecond,
 				})
@@ -271,13 +271,13 @@ func (e *Exporter) collectNodes(nodes nodeMap, ch chan<- prometheus.Metric) erro
 					return
 				}
 
-				logrus.Debugf("Node %s fetched", node.Name)
+				logrus.Debugf("Node %s fetched", n.Name)
 
-				o = newNodeLatencyObserver(node.Name, "get_running_allocs")
-				runningAllocs, err := e.getRunningAllocs(node.ID)
+				o = newNodeLatencyObserver(n.Name, "get_running_allocs")
+				runningAllocs, err := e.getRunningAllocs(n.ID)
 				o.observe()
 				if err != nil {
-					logError(fmt.Errorf("failed to get node %s running allocs: %s", node.Name, err))
+					logError(fmt.Errorf("failed to get node %s running allocs: %s", n.Name, err))
 					return
 				}
 
@@ -287,9 +287,9 @@ func (e *Exporter) collectNodes(nodes nodeMap, ch chan<- prometheus.Metric) erro
 					allocatedMemory += *alloc.Resources.MemoryMB
 				}
 
-				nodeLabels := []string{node.Name, node.Datacenter}
+				nodeLabels := []string{n.Name, n.Datacenter}
 				ch <- prometheus.MustNewConstMetric(
-					nodeResourceMemory, prometheus.GaugeValue, float64(*node.Resources.MemoryMB)*1024*1024,
+					nodeResourceMemory, prometheus.GaugeValue, float64(*n.Resources.MemoryMB)*1024*1024,
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
@@ -301,29 +301,29 @@ func (e *Exporter) collectNodes(nodes nodeMap, ch chan<- prometheus.Metric) erro
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					nodeResourceCPU, prometheus.GaugeValue, float64(*node.Resources.CPU),
+					nodeResourceCPU, prometheus.GaugeValue, float64(*n.Resources.CPU),
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					nodeResourceIOPS, prometheus.GaugeValue, float64(*node.Resources.IOPS),
+					nodeResourceIOPS, prometheus.GaugeValue, float64(*n.Resources.IOPS),
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
-					nodeResourceDiskBytes, prometheus.GaugeValue, float64(*node.Resources.DiskMB)*1024*1024,
+					nodeResourceDiskBytes, prometheus.GaugeValue, float64(*n.Resources.DiskMB)*1024*1024,
 					nodeLabels...,
 				)
 
-				o = newNodeLatencyObserver(node.Name, "get_stats")
-				nodeStats, err := e.client.Nodes().Stats(node.ID, &api.QueryOptions{
+				o = newNodeLatencyObserver(n.Name, "get_stats")
+				nodeStats, err := e.client.Nodes().Stats(n.ID, &api.QueryOptions{
 					AllowStale: true,
 					WaitTime:   1 * time.Millisecond,
 				})
 				o.observe()
 				if err != nil {
-					logError(fmt.Errorf("failed to get node %s stats: %s", node.Name, err))
+					logError(fmt.Errorf("failed to get node %s stats: %s", n.Name, err))
 					return
 				}
-				logrus.Debugf("Fetched node %s stats", node.Name)
+				logrus.Debugf("Fetched node %s stats", n.Name)
 
 				ch <- prometheus.MustNewConstMetric(
 					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used)*1024*1024,
