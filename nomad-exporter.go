@@ -305,7 +305,9 @@ func main() {
 		nomadServer = flag.String(
 			"nomad.server", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
 		nomadTimeout = flag.Int(
-			"nomad.timeout", 10, "HTTP timeout to contact Nomad agent, or read from it.")
+			"nomad.timeout", 500, "HTTP read timeout when talking to the Nomad agent. In milliseconds")
+		nomadWaitTime = flag.Int(
+			"nomad.waittime", 10, "Timeout to wait for the Nomad agent to deliver fresh data. In milliseconds.")
 		tlsCaFile = flag.String(
 			"tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
 		tlsCaPath = flag.String(
@@ -347,12 +349,13 @@ func main() {
 	cfg := api.DefaultConfig()
 	cfg.Address = *nomadServer
 
-	timeout := time.Duration(*nomadTimeout) * time.Second
-
-	if err := cfg.SetTimeout(time.Duration(*nomadTimeout) * time.Second); err != nil {
-		logrus.Fatalf("failed to set timeout: %s", err)
+	timeout := time.Duration(*nomadTimeout) * time.Millisecond
+	if err := cfg.SetTimeout(timeout); err != nil {
+		logrus.Fatalf("failed to set timeout %v: %s", timeout, err)
 	}
-	cfg.WaitTime = timeout
+
+	waitTime := time.Duration(*nomadWaitTime) * time.Millisecond
+	cfg.WaitTime = waitTime
 
 	if strings.HasPrefix(cfg.Address, "https://") {
 		cfg.TLSConfig.CACert = *tlsCaFile
