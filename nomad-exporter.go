@@ -61,60 +61,66 @@ var (
 		"How many jobs are there in the cluster.",
 		nil, nil,
 	)
+
+	allocationLabels = []string{"job", "group", "alloc", "region", "datacenter", "node", "version"}
+
 	allocationMemoryBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes"),
 		"Allocation memory usage",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
 	allocationMemoryBytesRequired = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_required_bytes"),
 		"Allocation memory required.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
 	allocationCPURequired = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_required"),
 		"Allocation CPU Required.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
 	allocationCPUPercent = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_percent"),
 		"Allocation CPU usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
 	allocationCPUTicks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_ticks"),
 		"Allocation CPU Ticks usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
 	allocationCPUUserMode = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_user_mode"),
 		"Allocation CPU User Mode Usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
 	allocationCPUSystemMode = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_system_mode"),
 		"Allocation CPU System Mode Usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
 	allocationCPUThrottled = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_throttle_time"),
 		"Allocation throttled CPU.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "version"}, nil,
+		allocationLabels, nil,
 	)
+
+	taskLabels = append(allocationLabels, "task")
+
 	taskCPUTotalTicks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_cpu_total_ticks"),
 		"Task CPU total ticks.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task", "version"}, nil,
+		taskLabels, nil,
 	)
 	taskCPUPercent = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_cpu_percent"),
 		"Task CPU usage percent.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task", "version"}, nil,
+		taskLabels, nil,
 	)
 	taskMemoryRssBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_memory_rss_bytes"),
 		"Task memory RSS usage in bytes.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task", "version"}, nil,
+		taskLabels, nil,
 	)
 
 	nodeResourceMemory = prometheus.NewDesc(
