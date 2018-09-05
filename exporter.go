@@ -396,7 +396,7 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 	}
 
 	var w sync.WaitGroup
-	allocationZombies.Reset()
+	allocationZombies.Set(0)
 
 	for _, allocStub := range allocStubs {
 		w.Add(1)
@@ -408,7 +408,7 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 			if n == nil {
 				logrus.Debugf("Allocation %s doesn't have a node associated. Skipping",
 					allocStub.ID)
-				allocationZombies.With(prometheus.Labels{}).Add(1)
+				allocationZombies.Add(1)
 				return
 			}
 

@@ -101,12 +101,11 @@ var (
 		"Allocation throttled CPU.",
 		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
-	allocationZombies = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	allocationZombies = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
 		Name:      "allocation_zombies",
 		Help:      "Allocation zombies.",
 	},
-		nil,
 	)
 	taskCPUTotalTicks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_cpu_total_ticks"),
