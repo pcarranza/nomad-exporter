@@ -553,7 +553,6 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 				*alloc.Job.Region,
 				n.Datacenter,
 				n.Name,
-				fmt.Sprintf("%d", alloc.Job.Version),
 			}
 			ch <- prometheus.MustNewConstMetric(
 				allocationCPUPercent, prometheus.GaugeValue, stats.ResourceUsage.CpuStats.Percent, allocationLabels...,
