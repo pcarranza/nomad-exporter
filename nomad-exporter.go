@@ -56,6 +56,36 @@ var (
 		"Describe member state.",
 		[]string{"datacenter", "class", "node", "drain"}, nil,
 	)
+	raftAppliedIndex = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_applied_index"),
+		"Index being applied.",
+		[]string{"datacenter", "node"}, nil,
+	)
+	raftCommitIndex = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_commit_index"),
+		"Index being committed.",
+		[]string{"datacenter", "node"}, nil,
+	)
+	raftFsmPending = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_fsm_pending"),
+		"Pending FSM.",
+		[]string{"datacenter", "node"}, nil,
+	)
+	raftLastLogIndex = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_last_log_index"),
+		"Last log index.",
+		[]string{"datacenter", "node"}, nil,
+	)
+	raftLastSnapshotIndex = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_last_snapshot_index"),
+		"Last snapshot index.",
+		[]string{"datacenter", "node"}, nil,
+	)
+	raftNumPeers = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_num_peers"),
+		"Number of Raft peers.",
+		[]string{"datacenter", "node"}, nil,
+	)
 	jobsTotal = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "jobs_total"),
 		"How many jobs are there in the cluster.",
@@ -333,6 +363,7 @@ func main() {
 			"allow-stale-reads", false, "allow to read metrics from a non-leader server",
 		)
 		noPeerMetricsEnabled            = flag.Bool("no-peer-metrics", false, "disable peer metrics collection")
+		noSerfMetricsEnabled            = flag.Bool("no-serf-metrics", false, "disable serf metrics collection")
 		noNodeMetricsEnabled            = flag.Bool("no-node-metrics", false, "disable node metrics collection")
 		noJobMetricsEnabled             = flag.Bool("no-jobs-metrics", false, "disable jobs metrics collection")
 		noAllocationsMetricsEnabled     = flag.Bool("no-allocations-metrics", false, "disable allocations metrics collection")
@@ -381,6 +412,7 @@ func main() {
 		client:                        apiClient,
 		AllowStaleReads:               *allowStaleReads,
 		PeerMetricsEnabled:            !*noPeerMetricsEnabled,
+		SerfMetricsEnabled:            !*noSerfMetricsEnabled,
 		NodeMetricsEnabled:            !*noNodeMetricsEnabled,
 		JobMetricEnabled:              !*noJobMetricsEnabled,
 		AllocationsMetricsEnabled:     !*noAllocationsMetricsEnabled,

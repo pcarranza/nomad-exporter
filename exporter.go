@@ -22,6 +22,7 @@ type Exporter struct {
 	AllowStaleReads               bool
 	amILeader                     bool
 	PeerMetricsEnabled            bool
+	SerfMetricsEnabled            bool
 	NodeMetricsEnabled            bool
 	JobMetricEnabled              bool
 	AllocationsMetricsEnabled     bool
@@ -42,6 +43,12 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- clusterServers
 	ch <- serfLanMembers
 	ch <- serfLanMembersStatus
+	ch <- raftAppliedIndex
+	ch <- raftCommitIndex
+	ch <- raftFsmPending
+	ch <- raftLastLogIndex
+	ch <- raftLastSnapshotIndex
+	ch <- raftNumPeers
 	ch <- jobsTotal
 	ch <- allocationMemoryBytes
 	ch <- allocationCPUPercent
@@ -122,6 +129,13 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	if e.PeerMetricsEnabled {
 		if err := measure("peers", func() error { return e.collectPeerMetrics(ch) }); err != nil {
+			logError(err)
+			return
+		}
+	}
+
+	if e.SerfMetricsEnabled {
+		if err := measure("self", func() error { return e.collectSerfMetrics(ch) }); err != nil {
 			logError(err)
 			return
 		}
@@ -373,6 +387,74 @@ func (e *Exporter) collectPeerMetrics(ch chan<- prometheus.Metric) error {
 	ch <- prometheus.MustNewConstMetric(
 		clusterServers, prometheus.GaugeValue, float64(len(peers)),
 	)
+	return nil
+}
+
+func (e *Exporter) collectSerfMetrics(ch chan<- prometheus.Metric) error {
+	self, err := e.client.Agent().Self()
+	if err != nil {
+		return fmt.Errorf("failed to get self metrics: %s", err)
+	}
+
+	if amIServer, err := strconv.ParseBool(self.Stats["nomad"]["server"]); err == nil && !amIServer {
+		return fmt.Errorf("I am not a server")
+	}
+	raft := self.Stats["raft"]
+	datacenter, err := e.client.Agent().Datacenter()
+	if err != nil {
+		return fmt.Errorf("unable to fetch the datacenter")
+	}
+	nodeName, err := e.client.Agent().NodeName()
+	if err != nil {
+		return fmt.Errorf("unable to fetch the node name")
+	}
+	appliedIndex, err := strconv.ParseFloat(raft["applied_index"], 64)
+	if err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			raftAppliedIndex, prometheus.GaugeValue, appliedIndex,
+			datacenter, nodeName,
+		)
+	}
+
+	commitIndex, err := strconv.ParseFloat(raft["commit_index"], 64)
+	if err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			raftCommitIndex, prometheus.GaugeValue, commitIndex,
+			datacenter, nodeName,
+		)
+	}
+
+	lastLogIndex, err := strconv.ParseFloat(raft["last_log_index"], 64)
+	if err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			raftLastLogIndex, prometheus.GaugeValue, lastLogIndex,
+			datacenter, nodeName,
+		)
+	}
+
+	fsmPending, err := strconv.ParseFloat(raft["fsm_pending"], 64)
+	if err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			raftFsmPending, prometheus.GaugeValue, fsmPending,
+			datacenter, nodeName,
+		)
+	}
+
+	lastSnapshotIndex, err := strconv.ParseFloat(raft["last_snapshot_index"], 64)
+	if err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			raftLastSnapshotIndex, prometheus.GaugeValue, lastSnapshotIndex,
+			datacenter, nodeName,
+		)
+	}
+
+	numPeers, err := strconv.ParseFloat(raft["num_peers"], 64)
+	if err == nil {
+		ch <- prometheus.MustNewConstMetric(
+			raftNumPeers, prometheus.GaugeValue, numPeers,
+			datacenter, nodeName,
+		)
+	}
 	return nil
 }
 
