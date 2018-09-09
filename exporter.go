@@ -71,6 +71,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- nodeUsedCPU
 
 	allocation.Describe(ch)
+	allocationZombies.Describe(ch)
 	evalCount.Describe(ch)
 	taskCount.Describe(ch)
 
@@ -477,6 +478,7 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 	}
 
 	var w sync.WaitGroup
+	allocationZombies.Set(0)
 
 	for _, allocStub := range allocStubs {
 		w.Add(1)
@@ -485,6 +487,12 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 			defer w.Done()
 
 			n := nodes[allocStub.NodeID]
+			if n == nil {
+				logrus.Debugf("Allocation %s doesn't have a node associated. Skipping",
+					allocStub.ID)
+				allocationZombies.Add(1)
+				return
+			}
 
 			if !nodes.IsReady(allocStub.NodeID) {
 				logrus.Debugf("Skipping fetching allocation %s for node %s because it's not in ready state but %s",
@@ -600,6 +608,7 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 
 	allocation.Collect(ch)
 	taskCount.Collect(ch)
+	allocationZombies.Collect(ch)
 	return nil
 }
 
