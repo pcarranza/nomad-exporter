@@ -54,7 +54,7 @@ var (
 	serfLanMembersStatus = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_member_status"),
 		"Describe member state.",
-		[]string{"datacenter", "class", "node", "drain"}, nil,
+		[]string{"datacenter", "class", "node", "node_id", "drain"}, nil,
 	)
 	raftAppliedIndex = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "raft_applied_index"),

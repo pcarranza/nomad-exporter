@@ -258,7 +258,7 @@ func (e *Exporter) collectNodes(nodes nodeMap, ch chan<- prometheus.Metric) erro
 				}
 				ch <- prometheus.MustNewConstMetric(
 					serfLanMembersStatus, prometheus.GaugeValue, float64(state),
-					node.Datacenter, node.NodeClass, node.Name, drain,
+					node.Datacenter, node.NodeClass, node.Name, node.ID, drain,
 				)
 
 				if !nodes.IsReady(node.ID) {
