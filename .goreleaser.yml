@@ -45,4 +45,6 @@ dockers:
     goarm: ''
     binary: nomad-exporter
     dockerfile: Dockerfile
-    latest: true
+    tag_templates:
+      - '{{ .Tag }}'
+      - latest
