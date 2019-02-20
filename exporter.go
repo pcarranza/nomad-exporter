@@ -341,7 +341,7 @@ func (e *Exporter) collectNodes(nodes nodeMap, ch chan<- prometheus.Metric) erro
 				logrus.Debugf("Fetched node %s stats", n.Name)
 
 				ch <- prometheus.MustNewConstMetric(
-					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used)*1024*1024,
+					nodeUsedMemory, prometheus.GaugeValue, float64(nodeStats.Memory.Used),
 					nodeLabels...,
 				)
 				ch <- prometheus.MustNewConstMetric(
