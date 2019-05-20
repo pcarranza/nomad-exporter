@@ -504,7 +504,12 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 					allocStub.Name, n.Name, n.Version)
 				return
 			}
-
+			if allocStub.DesiredStatus != "run" {
+				logrus.Debugf("Skipping fetching allocation %s because it's not desired to be run",
+					allocStub.Name)
+				return
+			}
+			
 			o = newLatencyObserver("get_allocation_info")
 			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
 				AllowStale: true,
