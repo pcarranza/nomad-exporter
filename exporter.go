@@ -525,7 +525,6 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 
 			allocation.With(prometheus.Labels{
 				"status":         alloc.ClientStatus,
-				"desired_status": alloc.DesiredStatus,
 				"job_type":       *job.Type,
 				"job_id":         alloc.JobID,
 				"task_group":     alloc.TaskGroup,
