@@ -201,7 +201,6 @@ var (
 	},
 		[]string{
 			"status",
-			"desired_status",
 			"job_type",
 			"job_id",
 			"task_group",
