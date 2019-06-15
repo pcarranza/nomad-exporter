@@ -5,12 +5,65 @@ Originally a fork of Nomon/nomad-exporter, now an extended version of it.
 ## Docker
 
 ```bash
-docker run pcarranza/nomad-exporter:latest
+docker run --rm -it -p 9441:9441 gitlab.com/yakshaving.art/nomad-exporter:latest -nomad.address http://nomad-server-address:46464
 ```
 
 ## Nomad version
 
-Currently supporting Nomad 0.8.3 API version
+Currently supporting Nomad 0.9.3 API version
+
+## Running in nomad
+
+Use the [provided hcl configuration file](./nomad-exporter.nomad)
+
+## Usage
+
+- **-allow-stale-reads**
+        allow to read metrics from a non-leader server
+- **-concurrency int**
+        max number of goroutines to launch concurrently when poking the API (default 20)
+- **-debug**
+        enable debug log level
+- **-no-allocation-stats-metrics**
+        disable stats metrics collection
+- **-no-allocations-metrics**
+        disable allocations metrics collection
+- **-no-deployment-metrics**
+        disable deployment metrics collection
+- **-no-eval-metrics**
+        disable eval metrics collection
+- **-no-jobs-metrics**
+        disable jobs metrics collection
+- **-no-node-metrics**
+        disable node metrics collection
+- **-no-peer-metrics**
+        disable peer metrics collection
+- **-no-serf-metrics**
+        disable serf metrics collection
+- **-nomad.address string**
+        HTTP API address of a Nomad server or agent. (default "http://localhost:4646")
+- **-nomad.timeout int**
+        HTTP read timeout when talking to the Nomad agent. In milliseconds (default 500)
+- **-nomad.waittime int**
+        Timeout to wait for the Nomad agent to deliver fresh data. In milliseconds. (default 10)
+- **-tls.ca-file string**
+        ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server
+- **-tls.ca-path string**
+        ca-path is the path to a directory of PEM-encoded CA cert files to verify the connection to nomad server
+- **-tls.cert-file string**
+        cert-file is the path to the client certificate for Nomad communication
+- **-tls.insecure**
+        insecure enables or disables SSL verification
+- **-tls.key-file string**
+        key-file is the path to the key for cert-file
+- **-tls.tls-server-name string**
+        tls-server-name sets the SNI for Nomad ssl connection
+- **-version**
+        Print version information.
+- **-web.listen-address string**
+        Address to listen on for web interface and telemetry. (default ":9441")
+- **-web.telemetry-path string**
+        Path under which to expose metrics. (default "/metrics")
 
 ## Leader Detection
 
@@ -69,19 +122,3 @@ recording metrics from any hosts regardless of it being the leader or not.
 |nomad_node_resource_disk_bytes | Amount of allocatable disk bytes the node has. | node, datacenter |
 |nomad_node_allocated_cpu_megahertz | Amount of allocated CPU on the node in MHz. | node, datacenter |
 |nomad_node_used_cpu_megahertz | Amount of CPU used on the node in MHz. | node, datacenter |
-
-## Usage
-
-* -allow-stale-reads: allow to read metrics from a non-leader server
-* -debug: enable debug log level
-* -nomad.server string: HTTP API address of a Nomad server or agent. (default "http://localhost:4646")
-* -nomad.timeout int: HTTP timeout to contact Nomad agent, or read from it. (default 10)
-* -tls.ca-file string: ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server
-* -tls.ca-path string: ca-path is the path to a directory of PEM-encoded CA cert files to verify the connection to nomad server
-* -tls.cert-file string: cert-file is the path to the client certificate for Nomad communication
-* -tls.insecure: insecure enables or disables SSL verification
-* -tls.key-file string: key-file is the path to the key for cert-file
-* -tls.tls-server-name string: tls-server-name sets the SNI for Nomad ssl connection
-* -version: Print version information.
-* -web.listen-address string: Address to listen on for web interface and telemetry. (default ":9172")
-* -web.telemetry-path string: Path under which to expose metrics. (default "/metrics")
