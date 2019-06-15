@@ -1,4 +1,4 @@
-module github.com/pcarranza/nomad-exporter
+module gitlab.com/yakshaving.art/nomad-exporter
 
 go 1.12
 
