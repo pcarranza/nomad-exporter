@@ -33,7 +33,7 @@ func main() {
 	waitTime := time.Duration(a.NomadWaitTime) * time.Millisecond
 
 	cfg := api.DefaultConfig()
-	cfg.Address = a.NomadServer
+	cfg.Address = a.NomadAddress
 
 	httpClient := cleanhttp.DefaultClient()
 	transport := httpClient.Transport.(*http.Transport)
