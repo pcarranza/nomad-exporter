@@ -6,7 +6,7 @@ type args struct {
 	ShowVersion                     bool
 	ListenAddress                   string
 	MetricsPath                     string
-	NomadServer                     string
+	NomadAddress                    string
 	NomadTimeout                    int
 	NomadWaitTime                   int
 	TlsCaFile                       string
@@ -31,18 +31,21 @@ type args struct {
 func parseArgs() args {
 	var a args
 
-	flag.BoolVar(&a.ShowVersion,
-		"version", false, "Print version information.")
+	flag.BoolVar(&a.ShowVersion, "version", false, "Print version information.")
+	flag.BoolVar(&a.Debug, "debug", false, "enable debug log level")
+
 	flag.StringVar(&a.ListenAddress,
 		"web.listen-address", ":9441", "Address to listen on for web interface and telemetry.")
 	flag.StringVar(&a.MetricsPath,
 		"web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-	flag.StringVar(&a.NomadServer,
-		"nomad.server", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
+
+	flag.StringVar(&a.NomadAddress,
+		"nomad.address", "http://localhost:4646", "HTTP API address of a Nomad server or agent.")
 	flag.IntVar(&a.NomadTimeout,
 		"nomad.timeout", 500, "HTTP read timeout when talking to the Nomad agent. In milliseconds")
 	flag.IntVar(&a.NomadWaitTime,
 		"nomad.waittime", 10, "Timeout to wait for the Nomad agent to deliver fresh data. In milliseconds.")
+
 	flag.StringVar(&a.TlsCaFile,
 		"tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
 	flag.StringVar(&a.TlsCaPath,
@@ -55,12 +58,9 @@ func parseArgs() args {
 		"tls.insecure", false, "insecure enables or disables SSL verification")
 	flag.StringVar(&a.TlsServerName,
 		"tls.tls-server-name", "", "tls-server-name sets the SNI for Nomad ssl connection")
-	flag.BoolVar(&a.Debug,
-		"debug", false, "enable debug log level",
-	)
-	flag.BoolVar(&a.AllowStaleReads,
-		"allow-stale-reads", false, "allow to read metrics from a non-leader server",
-	)
+
+	flag.BoolVar(&a.AllowStaleReads, "allow-stale-reads", false, "allow to read metrics from a non-leader server")
+
 	flag.BoolVar(&a.NoPeerMetricsEnabled, "no-peer-metrics", false, "disable peer metrics collection")
 	flag.BoolVar(&a.NoSerfMetricsEnabled, "no-serf-metrics", false, "disable serf metrics collection")
 	flag.BoolVar(&a.NoNodeMetricsEnabled, "no-node-metrics", false, "disable node metrics collection")
