@@ -509,7 +509,7 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 					allocStub.Name)
 				return
 			}
-			
+
 			o = newLatencyObserver("get_allocation_info")
 			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
 				AllowStale: true,
@@ -524,11 +524,11 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 			job := alloc.Job
 
 			allocation.With(prometheus.Labels{
-				"status":         alloc.ClientStatus,
-				"job_type":       *job.Type,
-				"job_id":         alloc.JobID,
-				"task_group":     alloc.TaskGroup,
-				"node":           n.Name,
+				"status":     alloc.ClientStatus,
+				"job_type":   *job.Type,
+				"job_id":     alloc.JobID,
+				"task_group": alloc.TaskGroup,
+				"node":       n.Name,
 			}).Add(1)
 
 			taskStates := alloc.TaskStates
@@ -560,6 +560,7 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 
 			allocationLabels := []string{
 				*alloc.Job.Name,
+				fmt.Sprintf("%d", *alloc.Job.Version),
 				alloc.TaskGroup,
 				alloc.Name,
 				*alloc.Job.Region,
@@ -673,7 +674,7 @@ func (e *Exporter) collectDeploymentMetrics(ch chan<- prometheus.Metric) error {
 		for taskGroupName, taskGroup := range taskGroups {
 			deploymentLabels := []string{
 				dep.JobID,
-				dep.ID,
+				fmt.Sprintf("%d", dep.JobVersion),
 				taskGroupName,
 				strconv.FormatBool(taskGroup.Promoted),
 				strconv.FormatBool(taskGroup.AutoRevert),
