@@ -196,6 +196,7 @@ var (
 			"status",
 			"job_type",
 			"job_id",
+			"job_version",
 			"task_group",
 			"node",
 		},
