@@ -87,42 +87,42 @@ var (
 	allocationMemoryBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_bytes"),
 		"Allocation memory usage",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationMemoryBytesRequired = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_memory_rss_required_bytes"),
 		"Allocation memory required.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPURequired = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_required"),
 		"Allocation CPU Required.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUPercent = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_percent"),
 		"Allocation CPU usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUTicks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_ticks"),
 		"Allocation CPU Ticks usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUUserMode = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_user_mode"),
 		"Allocation CPU User Mode Usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUSystemMode = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_system_mode"),
 		"Allocation CPU System Mode Usage.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationCPUThrottled = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "allocation_cpu_throttle_time"),
 		"Allocation throttled CPU.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node"}, nil,
 	)
 	allocationZombies = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: namespace,
@@ -133,17 +133,17 @@ var (
 	taskCPUTotalTicks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_cpu_total_ticks"),
 		"Task CPU total ticks.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
 	)
 	taskCPUPercent = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_cpu_percent"),
 		"Task CPU usage percent.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
 	)
 	taskMemoryRssBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "task_memory_rss_bytes"),
 		"Task memory RSS usage in bytes.",
-		[]string{"job", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
+		[]string{"job", "job_version", "group", "alloc", "region", "datacenter", "node", "task"}, nil,
 	)
 
 	nodeResourceMemory = prometheus.NewDesc(
@@ -238,7 +238,7 @@ var (
 	},
 		[]string{
 			"job_id",
-			"deployment_id",
+			"job_version",
 			"task_group",
 			"promoted",
 			"auto_revert",
@@ -252,7 +252,7 @@ var (
 	},
 		[]string{
 			"job_id",
-			"deployment_id",
+			"job_version",
 			"task_group",
 			"promoted",
 			"auto_revert",
@@ -266,7 +266,7 @@ var (
 	},
 		[]string{
 			"job_id",
-			"deployment_id",
+			"job_version",
 			"task_group",
 			"promoted",
 			"auto_revert",
@@ -280,7 +280,7 @@ var (
 	},
 		[]string{
 			"job_id",
-			"deployment_id",
+			"job_version",
 			"task_group",
 			"promoted",
 			"auto_revert",
@@ -294,7 +294,7 @@ var (
 	},
 		[]string{
 			"job_id",
-			"deployment_id",
+			"job_version",
 			"task_group",
 			"promoted",
 			"auto_revert",
