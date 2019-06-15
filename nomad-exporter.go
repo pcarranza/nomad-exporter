@@ -385,10 +385,7 @@ func main() {
 	cfg := api.DefaultConfig()
 	cfg.Address = *nomadServer
 
-	timeout := time.Duration(*nomadTimeout) * time.Millisecond
-	if err := cfg.SetTimeout(timeout); err != nil {
-		logrus.Fatalf("failed to set timeout %v: %s", timeout, err)
-	}
+	cfg.HttpClient.Timeout = time.Duration(*nomadTimeout) * time.Millisecond
 
 	waitTime := time.Duration(*nomadWaitTime) * time.Millisecond
 	cfg.WaitTime = waitTime
