@@ -5,9 +5,9 @@ job "nomad-exporter" {
 	update {
 		stagger          = "10s"
 		max_parallel     = 1
-    canary           = 1
-    min_healthy_time = "5s"
-    healthy_deadline = "15s"
+		canary           = 1
+		min_healthy_time = "5s"
+		healthy_deadline = "15s"
 	}
 
 	group "nomad-exporter-group" {
@@ -24,26 +24,27 @@ job "nomad-exporter" {
 		task "nomad-exporter" {
 			driver = "docker"
 			config {
-        image = "registry.gitlab.com/yakshaving.art/nomad-exporter:latest"
-          port_map {
-            http = 9441
-          }
-        args = [
-          "-allow-stale-reads",
-          "-nomad.address",
-          "http://${attr.nomad.advertise.address}",
-        ]
-      }
+				image = "registry.gitlab.com/yakshaving.art/nomad-exporter:latest"
+				port_map {
+					http = 9441
+				}
+				args = [
+					"-allow-stale-reads",
+					"-nomad.address",
+					"http://${attr.nomad.advertise.address}",
+				]
+			}
+
 			service {
 				name = "${TASK}-service"
 				tags = ["nomad-exporter"]
 				port = "http"
 				check {
-				  name = "alive"
-				  type = "http"
-				  interval = "15s"
-				  timeout = "5s"
-				  path = "/"
+					name = "alive"
+					type = "http"
+					interval = "15s"
+					timeout = "5s"
+					path = "/"
 				}
 			}
 
@@ -52,8 +53,7 @@ job "nomad-exporter" {
 				memory = 64 # MB
 				network {
 					mbits = 1
-					port "http" {
-					}
+					port "http" { }
 				}
 			}
 
