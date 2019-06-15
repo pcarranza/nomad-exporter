@@ -7,6 +7,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.3.1 // indirect
 	github.com/gorilla/websocket v1.4.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.1
 	github.com/hashicorp/go-version v1.1.0
 	github.com/hashicorp/nomad/api v0.0.0-20190614224134-78da9b6ee8df
 	github.com/matttproud/golang_protobuf_extensions v1.0.0 // indirect
