@@ -57,7 +57,7 @@ func main() {
 
 	apiClient, err := api.NewClient(cfg)
 	if err != nil {
-		logrus.Fatalf("could not create exporter: %s", err)
+		logrus.Fatalf("could not create api client: %s", err)
 	}
 
 	exporter := &Exporter{
