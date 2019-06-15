@@ -215,7 +215,6 @@ var (
 	},
 		[]string{
 			"state",
-			"failed",
 			"job_type",
 			"node",
 		},

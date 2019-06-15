@@ -100,7 +100,7 @@ recording metrics from any hosts regardless of it being the leader or not.
 |nomad_serf_lan_member_status | Describe member state. | datacenter, class, node, drain |
 |nomad_allocation | Allocation labeled with runtime information. | status, desired_status, job_type, job_id, job_version, task_group, node |
 |nomad_evals_total | The number of evaluations. | status |
-|nomad_tasks_total | The number of tasks. | state, failed, job_type, node |
+|nomad_tasks_total | The number of tasks. | state, job_type, node |
 |nomad_deployments_total | The number of deployments. | status, job_id |
 |nomad_deployment_task_group_desired_canaries_total | The number of desired canaries for the task group. | job_id, job_version, task_group, promoted, auto_revert |
 |nomad_deployment_task_group_desired_total | The number of desired allocs for the task group. | job_id, job_version, task_group, promoted, auto_revert |

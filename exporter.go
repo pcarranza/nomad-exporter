@@ -509,7 +509,6 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 					allocStub.Name)
 				return
 			}
-
 			o = newLatencyObserver("get_allocation_info")
 			alloc, _, err := e.client.Allocations().Info(allocStub.ID, &api.QueryOptions{
 				AllowStale: true,
@@ -537,7 +536,6 @@ func (e *Exporter) collectAllocations(nodes nodeMap, ch chan<- prometheus.Metric
 			for _, task := range taskStates {
 				taskCount.With(prometheus.Labels{
 					"state":    task.State,
-					"failed":   strconv.FormatBool(task.Failed),
 					"job_type": *job.Type,
 					"node":     n.Name,
 				}).Add(1)
