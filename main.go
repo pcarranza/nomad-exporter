@@ -29,6 +29,66 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
+	apiClient, err := api.NewClient(configureWith(a))
+	if err != nil {
+		logrus.Fatalf("could not create api client: %s", err)
+	}
+
+	exporter := &Exporter{
+		client:                        apiClient,
+		AllowStaleReads:               a.AllowStaleReads,
+		PeerMetricsEnabled:            !a.NoPeerMetricsEnabled,
+		SerfMetricsEnabled:            !a.NoSerfMetricsEnabled,
+		NodeMetricsEnabled:            !a.NoNodeMetricsEnabled,
+		JobMetricEnabled:              !a.NoJobMetricsEnabled,
+		AllocationsMetricsEnabled:     !a.NoAllocationsMetricsEnabled,
+		EvalMetricsEnabled:            !a.NoEvalMetricsEnabled,
+		DeploymentMetricsEnabled:      !a.NoDeploymentMetricsEnabled,
+		AllocationStatsMetricsEnabled: !a.NoAllocationStatsMetricsEnabled,
+		Concurrency:                   a.Concurrency,
+	}
+	prometheus.MustRegister(exporter)
+
+	http.HandleFunc("/", rootFunc(a.MetricsPath))
+	http.HandleFunc("/status", statusFunc(exporter))
+	http.Handle(a.MetricsPath, prometheus.Handler())
+
+	logrus.Println("Listening on", a.ListenAddress)
+	logrus.Fatal(http.ListenAndServe(a.ListenAddress, nil))
+}
+
+func rootFunc(metricsPath string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`<html>
+             <head><title>Nomad Exporter</title></head>
+             <body>
+             <h1>Nomad Exporter</h1>
+             <p><a href='` + metricsPath + `'>Metrics</a></p>
+             </body>
+			 </html>`))
+	}
+}
+
+func statusFunc(e *Exporter) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		err := e.Probe()
+		status := "UP"
+		if err != nil {
+			status = "DOWN"
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+
+		w.Write([]byte(`<html>
+		<head><title>Nomad Exporter Status</title></head>
+		<body>
+		<h1>Nomad Exporter Status</h1>
+		<p><strong>` + status + `</strong></p>
+		</body>
+		</html>`))
+	}
+}
+
+func configureWith(a args) *api.Config {
 	timeout := time.Duration(a.NomadTimeout) * time.Millisecond
 	waitTime := time.Duration(a.NomadWaitTime) * time.Millisecond
 
@@ -55,40 +115,5 @@ func main() {
 		cfg.TLSConfig.TLSServerName = a.TlsServerName
 	}
 
-	apiClient, err := api.NewClient(cfg)
-	if err != nil {
-		logrus.Fatalf("could not create api client: %s", err)
-	}
-
-	exporter := &Exporter{
-		client:                        apiClient,
-		AllowStaleReads:               a.AllowStaleReads,
-		PeerMetricsEnabled:            !a.NoPeerMetricsEnabled,
-		SerfMetricsEnabled:            !a.NoSerfMetricsEnabled,
-		NodeMetricsEnabled:            !a.NoNodeMetricsEnabled,
-		JobMetricEnabled:              !a.NoJobMetricsEnabled,
-		AllocationsMetricsEnabled:     !a.NoAllocationsMetricsEnabled,
-		EvalMetricsEnabled:            !a.NoEvalMetricsEnabled,
-		DeploymentMetricsEnabled:      !a.NoDeploymentMetricsEnabled,
-		AllocationStatsMetricsEnabled: !a.NoAllocationStatsMetricsEnabled,
-		Concurrency:                   a.Concurrency,
-	}
-
-	logrus.Debugf("Created exporter %#v", *exporter)
-
-	prometheus.MustRegister(exporter)
-
-	http.Handle(a.MetricsPath, prometheus.Handler())
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`<html>
-             <head><title>Nomad Exporter</title></head>
-             <body>
-             <h1>Nomad Exporter</h1>
-             <p><a href='` + a.MetricsPath + `'>Metrics</a></p>
-             </body>
-             </html>`))
-	})
-
-	logrus.Println("Listening on", a.ListenAddress)
-	logrus.Fatal(http.ListenAndServe(a.ListenAddress, nil))
+	return cfg
 }
