@@ -9,12 +9,12 @@ type args struct {
 	NomadAddress                    string
 	NomadTimeout                    int
 	NomadWaitTime                   int
-	TlsCaFile                       string
-	TlsCaPath                       string
-	TlsCert                         string
-	TlsKey                          string
-	TlsInsecure                     bool
-	TlsServerName                   string
+	TLSCaFile                       string
+	TLSCaPath                       string
+	TLSCert                         string
+	TLSKey                          string
+	TLSInsecure                     bool
+	TLSServerName                   string
 	Debug                           bool
 	AllowStaleReads                 bool
 	NoPeerMetricsEnabled            bool
@@ -46,17 +46,17 @@ func parseArgs() args {
 	flag.IntVar(&a.NomadWaitTime,
 		"nomad.waittime", 10, "Timeout to wait for the Nomad agent to deliver fresh data. In milliseconds.")
 
-	flag.StringVar(&a.TlsCaFile,
+	flag.StringVar(&a.TLSCaFile,
 		"tls.ca-file", "", "ca-file path to a PEM-encoded CA cert file to use to verify the connection to nomad server")
-	flag.StringVar(&a.TlsCaPath,
+	flag.StringVar(&a.TLSCaPath,
 		"tls.ca-path", "", "ca-path is the path to a directory of PEM-encoded CA cert files to verify the connection to nomad server")
-	flag.StringVar(&a.TlsCert,
+	flag.StringVar(&a.TLSCert,
 		"tls.cert-file", "", "cert-file is the path to the client certificate for Nomad communication")
-	flag.StringVar(&a.TlsKey,
+	flag.StringVar(&a.TLSKey,
 		"tls.key-file", "", "key-file is the path to the key for cert-file")
-	flag.BoolVar(&a.TlsInsecure,
+	flag.BoolVar(&a.TLSInsecure,
 		"tls.insecure", false, "insecure enables or disables SSL verification")
-	flag.StringVar(&a.TlsServerName,
+	flag.StringVar(&a.TLSServerName,
 		"tls.tls-server-name", "", "tls-server-name sets the SNI for Nomad ssl connection")
 
 	flag.BoolVar(&a.AllowStaleReads, "allow-stale-reads", false, "allow to read metrics from a non-leader server")

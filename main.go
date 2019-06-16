@@ -107,12 +107,12 @@ func configureWith(a args) *api.Config {
 	cfg.WaitTime = waitTime
 
 	if strings.HasPrefix(cfg.Address, "https://") {
-		cfg.TLSConfig.CACert = a.TlsCaFile
-		cfg.TLSConfig.CAPath = a.TlsCaPath
-		cfg.TLSConfig.ClientKey = a.TlsKey
-		cfg.TLSConfig.ClientCert = a.TlsCert
-		cfg.TLSConfig.Insecure = a.TlsInsecure
-		cfg.TLSConfig.TLSServerName = a.TlsServerName
+		cfg.TLSConfig.CACert = a.TLSCaFile
+		cfg.TLSConfig.CAPath = a.TLSCaPath
+		cfg.TLSConfig.ClientKey = a.TLSKey
+		cfg.TLSConfig.ClientCert = a.TLSCert
+		cfg.TLSConfig.Insecure = a.TLSInsecure
+		cfg.TLSConfig.TLSServerName = a.TLSServerName
 	}
 
 	return cfg
