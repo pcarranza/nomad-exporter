@@ -44,7 +44,7 @@ job "nomad-exporter" {
 					type = "http"
 					interval = "15s"
 					timeout = "5s"
-					path = "/"
+					path = "/status"
 				}
 			}
 

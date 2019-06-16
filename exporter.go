@@ -720,6 +720,15 @@ func (e Exporter) fetchNodes() (nodeMap, error) {
 	return m, nil
 }
 
+// Probe checks that the service can talk to the nomad server
+func (e Exporter) Probe() error {
+	_, err := e.client.Status().Leader()
+	if err != nil {
+		return fmt.Errorf("could not collect leader: %s", err)
+	}
+	return nil
+}
+
 type nodeMap map[string]*api.NodeListStub
 
 func (n nodeMap) IsReady(id string) bool {
