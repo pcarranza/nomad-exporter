@@ -65,6 +65,21 @@ Use the [provided hcl configuration file](./nomad-exporter.nomad)
 - **-web.telemetry-path string**
         Path under which to expose metrics. (default "/metrics")
 
+### Environment Variables
+
+Environment variables are loaded into argument defaults, thus they can be
+overriden setting the arguments directly, still, they offer a way of
+configuring the executable with the environment instead of the command
+arguments.
+
+- **NOMAD_ADDR** same as `-nomad.address`
+- **NOMAD_CACERT** same as `-tls.ca-file`
+- **NOMAD_CAPATH** same as `-tls.ca-path`
+- **NOMAD_CLIENT_CERT** same as `-tls.cert-file`
+- **NOMAD_CLIENT_KEY** same as `-tls.key-file`
+- **NOMAD_SKIP_VERIFY** same as `-tls.insecure`
+- **NOMAD_SNI_TLS_SERVER_NAME** same as `-tls.tls-server-name`
+
 ## Leader Detection
 
 The way to identify the leader is by comparing the leader address obtained
