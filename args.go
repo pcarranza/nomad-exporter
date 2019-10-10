@@ -43,7 +43,7 @@ func parseArgs() args {
 		"web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 
 	nomadAddr := os.Getenv("NOMAD_ADDR")
-	if nomadAddr != "" {
+	if nomadAddr == "" {
 		nomadAddr = "http://localhost:4646"
 	}
 	flag.StringVar(&a.NomadAddress,
