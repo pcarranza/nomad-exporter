@@ -29,7 +29,7 @@ all: snapshot
 
 .PHONY: build
 build: ### build the binary
-	@go build -ldflags "-X gitlab.com/yakshaving.art/nomad-exporter/version.Version=$(VERSION) -X gitlab.com/yakshaving.art/nomad-exporter/version.Commit=$(COMMIT_ID) -X gitlab.com/yakshaving.art/nomad-exporter/version.Date=$(COMMIT_DATE)"
+	@GOOS=linux GOARCH=amd64 go build -ldflags "-X gitlab.com/yakshaving.art/nomad-exporter/version.Version=$(VERSION) -X gitlab.com/yakshaving.art/nomad-exporter/version.Commit=$(COMMIT_ID) -X gitlab.com/yakshaving.art/nomad-exporter/version.Date=$(COMMIT_DATE)"
 
 .PHONY: clean
 clean: ### clean the .dist folder created by goreleaser
