@@ -36,7 +36,7 @@ var (
 	nodeInfo = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_info"),
 		"Node information",
-		[]string{"name", "version", "class", "status", "drain", "datacenter", "scheduling_eligibility"},
+		[]string{"class", "datacenter", "drain", "name", "node_id", "scheduling_eligibility", "status", "version"},
 		nil,
 	)
 	serfLanMembers = prometheus.NewDesc(
@@ -47,7 +47,7 @@ var (
 	serfLanMembersStatus = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_member_status"),
 		"Describe member state.",
-		[]string{"datacenter", "class", "node", "node_id", "drain"}, nil,
+		[]string{"class", "datacenter", "node", "node_id", "drain"}, nil,
 	)
 	raftAppliedIndex = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "raft_applied_index"),
