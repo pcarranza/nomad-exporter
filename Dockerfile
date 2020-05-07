@@ -1,6 +1,6 @@
-FROM alpine:3.8
+FROM alpine:3.9
 
-RUN apk --no-cache add ca-certificates=20190108-r0
+RUN apk --no-cache add ca-certificates
 
 EXPOSE 9441
 
