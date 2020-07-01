@@ -113,6 +113,10 @@ func configureWith(a args) *api.Config {
 		cfg.TLSConfig.ClientCert = a.TLSCert
 		cfg.TLSConfig.Insecure = a.TLSInsecure
 		cfg.TLSConfig.TLSServerName = a.TLSServerName
+
+		if err := api.ConfigureTLS(httpClient, cfg.TLSConfig); err != nil {
+			logrus.Fatalf("failed to configure TLS: %s", err)
+		}
 	}
 
 	return cfg
